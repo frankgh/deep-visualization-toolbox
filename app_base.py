@@ -8,7 +8,7 @@ class BaseApp(object):
 
     def handle_input(self, input_image, panes):
         pass
-        
+
     def handle_key(self, key, panes):
         '''Handle key and return either key (to let someone downstream handle it) or None (if this app handled it)'''
         pass

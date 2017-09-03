@@ -2,3 +2,6 @@ settings_local.py
 settings.py.templatec
 *.pyc
 *.DS_Store
+.idea/
+models/kerasvis-afg/*.h5
+models/kerasvis-afg/*.tar.gz
