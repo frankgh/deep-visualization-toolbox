@@ -174,7 +174,9 @@ class SignalVis(object):
                 since_imshow = 0
                 last_render = now
 
-            # print '                                                         Number of keys:', len(keys)
+            if self.debug_level == 3:
+                print '                                                         Number of keys:', len(keys)
+
             for key in keys:
                 since_keypress = 0
                 if self.debug_level == 3:

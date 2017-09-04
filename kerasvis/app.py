@@ -6,9 +6,9 @@ import os
 
 import cv2
 import keras
+import keras.backend as K
 import numpy as np
 import tensorflow as tf
-from keras import backend as K
 from keras.models import load_model
 
 from app_base import BaseApp
@@ -130,6 +130,7 @@ class KerasVisApp(BaseApp):
             if self.debug_level > 1:
                 print ('KerasVisApp.handle_input: pushed frame')
             self.state.next_frame = input_signal
+            self.state.active_signal = input_signal
             if self.debug_level > 1:
                 print ('KerasVisApp.handle_input: keras_net_state is: {}'.format(self.state.keras_net_state))
 
@@ -160,8 +161,7 @@ class KerasVisApp(BaseApp):
                 self._draw_status_pane(panes['kerasvis_status'])
             layer_data_3D_highres = None
             if 'kerasvis_layers' in panes:
-                # layer_data_3D_highres = self._draw_layer_pane(panes['kerasvis_layers'])
-                pass
+                layer_data_3D_highres = self._draw_layer_pane(panes['kerasvis_layers'])
             if 'kerasvis_aux' in panes:
                 self._draw_aux_pane(panes['kerasvis_aux'], layer_data_3D_highres)
             if 'kerasvis_back' in panes:
@@ -288,21 +288,28 @@ class KerasVisApp(BaseApp):
         # functor = K.function([inp] + [K.learning_phase()], layer.output)
         # layer_dat_3D = functor([self.state.next_frame, 1.])
 
+        if self.state.active_signal is None:
+            return None
+
+
+
         current_layer_output = K.function([self.net.layers[0].input, K.learning_phase()],
                                           [self.net.layers[self.state.layer_idx].output])
-        layer_dat_3D = current_layer_output([self.state.next_frame, 0])[0]
-
+        out = current_layer_output([self.state.active_signal, 0])[0]
+        layer_dat_3D = out[0].T
         img_width, img_height = get_tiles_height_width_ratio(layer_dat_3D.shape[1],
                                                              self.settings.kerasvis_layers_aspect_ratio)
 
-        # TODO: Francisco Guerrero
+        pad = np.zeros((layer_dat_3D.shape[0], ((img_width * img_height) - layer_dat_3D.shape[1])))
+        layer_dat_3D = np.concatenate((layer_dat_3D, pad), axis=1)
+        layer_dat_3D = np.reshape(layer_dat_3D, (layer_dat_3D.shape[0], img_width, img_height))
 
-        return None
+        # return None
         # TODO: Francisco Guerrero
-        if self.state.layers_show_back:
-            layer_dat_3D = self.net.blobs[self.state.layer].diff[0]
-        else:
-            layer_dat_3D = self.net.blobs[self.state.layer].data[0]
+        # if self.state.layers_show_back:
+        #     layer_dat_3D = self.net.blobs[self.state.layer].diff[0]
+        # else:
+        #     layer_dat_3D = self.net.blobs[self.state.layer].data[0]
         # Promote FC layers with shape (n) to have shape (n,1,1)
         if len(layer_dat_3D.shape) == 1:
             layer_dat_3D = layer_dat_3D[:, np.newaxis, np.newaxis]
