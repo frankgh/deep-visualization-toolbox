@@ -201,16 +201,18 @@ class KerasVisApp(BaseApp):
         top_5 = probs_flat.argsort()[-1:-6:-1]
 
         strings = []
+        fs = FormattedString('Predicted Label:', defaults)
+        fs.clr = clr_0
+        strings.append([fs])
         for idx in top_5:
             prob = probs_flat[idx]
-            text = '%.2f %s' % (prob, self.labels[idx])
+            text = '  %.2f %s' % (prob, self.labels[idx])
             fs = FormattedString(text, defaults)
             # fs.clr = tuple([clr_1[ii]*prob/pmax + clr_0[ii]*(1-prob/pmax) for ii in range(3)])
             fs.clr = tuple([max(0, min(255, clr_1[ii] * prob + clr_0[ii] * (1 - prob))) for ii in range(3)])
             strings.append([fs])  # Line contains just fs
 
-        cv2_typeset_text(pane.data, strings, loc,
-                         line_spacing=self.settings.kerasvis_class_line_spacing)
+        cv2_typeset_text(pane.data, strings, loc, line_spacing=self.settings.kerasvis_class_line_spacing)
 
     def _draw_control_pane(self, pane):
         pane.data[:] = to_255(self.settings.window_background)

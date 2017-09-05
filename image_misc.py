@@ -54,6 +54,22 @@ def cv2_read_cap_rgb(cap, saveto=None):
     return frame
 
 
+def plt_plot_filter(data):
+    fig = Figure()
+    canvas = FigureCanvas(fig)
+    ax = fig.add_subplot(111)
+    ax.plot(data, linewidth=1)
+    fig.subplots_adjust(hspace=0)
+    canvas.draw()
+
+    l, b, w, h = fig.bbox.bounds
+    w, h = int(w), int(h)
+
+    im = np.fromstring(canvas.tostring_rgb(), dtype='uint8')
+    im.shape = h, w, 3
+    return im
+
+
 def plt_plot_signal(data, labels):
     fig = Figure()
     canvas = FigureCanvas(fig)
@@ -107,7 +123,6 @@ def crop_to_square(frame):
 def cv2_imshow_rgb(window_name, img):
     # Convert native OpenCV BGR -> RGB before displaying
     cv2.imshow(window_name, cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
-    # cv2.imshow(window_name, img)
 
 
 def caffe_load_image(filename, color=True, as_uint=False):
@@ -213,7 +228,8 @@ def tile_images_make_tiles(data, padsize=1, padval=0, hw=None, highlights=None):
         height, width = hw
     else:
         height, width = get_tiles_height_width(data.shape[0])
-    assert height * width >= data.shape[0], '%d rows x %d columns cannot fit %d tiles' % (height, width, data.shape[0])
+    assert height * width >= data.shape[0], '{} rows x {} columns cannot fit {} tiles'.format(height, width,
+                                                                                              data.shape[0])
 
     # First iteration: one-way padding, no highlights
     # padding = ((0, width*height - data.shape[0]), (0, padsize), (0, padsize)) + ((0, 0),) * (data.ndim - 3)

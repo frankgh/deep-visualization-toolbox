@@ -136,6 +136,7 @@ class SignalVis(object):
         last_render = time.time() - 999
         latest_frame_idx = None
         latest_frame_data = None
+        latest_label = None
         latest_signal = None
         frame_for_apps = None
         redraw_needed = True  # Force redraw the first time
@@ -194,17 +195,21 @@ class SignalVis(object):
                 redraw_needed |= app.redraw_needed()
 
             # Grab latest frame from input_updater thread
-            fr_idx, fr_data, fr_signal = self.input_updater.get_frame()
+            fr_idx, fr_data, fr_signal, fr_label = self.input_updater.get_frame()
             is_new_frame = (fr_idx != latest_frame_idx and fr_data is not None and fr_signal is not None)
             if is_new_frame:
                 latest_frame_idx = fr_idx
                 latest_frame_data = fr_data
                 frame_for_apps = fr_data
                 latest_signal = fr_signal
+                latest_label = fr_label
 
             if is_new_frame:
                 with WithTimer('LiveVis.display_frame', quiet=self.debug_level < 1):
                     self.display_frame(latest_frame_data)
+
+                    if 'input_label' in self.panes:
+                        self._draw_input_label_pane(self.panes['input_label'], latest_label)
                 imshow_needed = True
 
             do_handle_input = (ii == 0 or since_keypress >= self.settings.keypress_pause_handle_iterations)
@@ -332,6 +337,28 @@ class SignalVis(object):
     def display_frame(self, frame):
         frame_disp = cv2.resize(frame[:], self.panes['input'].data.shape[:2][::-1])
         self.panes['input'].data[:] = frame_disp
+
+    def _draw_input_label_pane(self, pane, label):
+        defaults = {'face': getattr(cv2, self.settings.kerasvis_class_face),
+                    'fsize': self.settings.kerasvis_class_fsize,
+                    'clr': to_255(self.settings.kerasvis_class_clr_0),
+                    'thick': self.settings.kerasvis_class_thick}
+        loc = self.settings.kerasvis_class_loc[::-1]  # Reverse to OpenCV c,r order
+        clr_0 = to_255(self.settings.kerasvis_class_clr_0)
+        clr_1 = to_255(self.settings.kerasvis_class_clr_1)
+
+        strings = []
+
+        fs = FormattedString('Actual Label:', defaults)
+        fs.clr = clr_0
+        strings.append([fs])
+
+        fs = FormattedString('  {}'.format(np.argmax(label)), defaults)
+        fs.clr = clr_1
+        strings.append([fs])
+
+        pane.data[:] = to_255(self.settings.window_background)
+        cv2_typeset_text(pane.data, strings, loc, line_spacing=self.settings.kerasvis_class_line_spacing)
 
     def draw_help(self):
         self.help_buffer[:] = self.help_buffer[:] * .7

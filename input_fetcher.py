@@ -31,6 +31,7 @@ class InputSignalFetcher(CodependentThread):
         self.latest_static_filename = None
         self.latest_static_file_data = None
         self.latest_static_frame = None
+        self.latest_label = None
         self.static_file_idx = None
         self.static_file_idx_increment = 0
         self.signal_idx = None
@@ -86,7 +87,7 @@ class InputSignalFetcher(CodependentThread):
         is not valid.
         '''
         with self.lock:
-            return (self.latest_frame_idx, self.latest_frame_data, self.latest_signal)
+            return (self.latest_frame_idx, self.latest_frame_data, self.latest_signal, self.latest_label)
 
     def increment_static_file_idx(self, amount=1):
         with self.lock:
@@ -165,6 +166,7 @@ class InputSignalFetcher(CodependentThread):
                 if not self.static_file_stretch_mode:
                     im = crop_to_square(im)
                 self.latest_static_frame = im
+                self.latest_label = self.latest_static_file_labels[self.signal_idx]
 
             self._increment_and_set_frame(self.latest_static_frame,
                                           self.latest_static_file_data[self.signal_idx:self.signal_idx + 1])
