@@ -23,6 +23,7 @@ class KerasVisAppState(object):
         self.extra_msg = ''
         self.back_stale = True  # back becomes stale whenever the last back diffs were not computed using the current backprop unit and method (bprop or deconv)
         self.next_frame = None
+        self.active_signal = None
         self.jpgvis_to_load_key = None
         self.last_key_at = 0
         self.quit = False

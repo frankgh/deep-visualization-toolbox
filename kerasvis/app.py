@@ -283,15 +283,8 @@ class KerasVisApp(BaseApp):
     def _draw_layer_pane(self, pane):
         '''Returns the data shown in highres format, b01c order.'''
 
-        # inp = self.net.input  # input placeholder
-        # layer = self.net.layers[self.state.layer_idx]
-        # functor = K.function([inp] + [K.learning_phase()], layer.output)
-        # layer_dat_3D = functor([self.state.next_frame, 1.])
-
         if self.state.active_signal is None:
             return None
-
-
 
         current_layer_output = K.function([self.net.layers[0].input, K.learning_phase()],
                                           [self.net.layers[self.state.layer_idx].output])
@@ -304,13 +297,6 @@ class KerasVisApp(BaseApp):
         layer_dat_3D = np.concatenate((layer_dat_3D, pad), axis=1)
         layer_dat_3D = np.reshape(layer_dat_3D, (layer_dat_3D.shape[0], img_width, img_height))
 
-        # return None
-        # TODO: Francisco Guerrero
-        # if self.state.layers_show_back:
-        #     layer_dat_3D = self.net.blobs[self.state.layer].diff[0]
-        # else:
-        #     layer_dat_3D = self.net.blobs[self.state.layer].data[0]
-        # Promote FC layers with shape (n) to have shape (n,1,1)
         if len(layer_dat_3D.shape) == 1:
             layer_dat_3D = layer_dat_3D[:, np.newaxis, np.newaxis]
 
