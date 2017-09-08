@@ -84,6 +84,7 @@ _.add_multikey('sel_layer_right', ['o', 'O'], 'Select next layer without moving 
 
 _.add('zoom_mode', 'z', 'Cycle zooming through {currently selected unit, backprop results, none}')
 _.add('pattern_mode', 's', 'Toggle overlay of preferred input pattern (regularized optimized images)')
+_.add('filter_mode', 'f', 'Toggle filter output visualization (square, average)')
 
 _.add('ez_back_mode_loop', 'b', 'Cycle through a few common backprop/deconv modes')
 _.add('freeze_back_unit', 'd', 'Freeze the bprop/deconv origin to be the currently selected unit')
@@ -94,7 +95,6 @@ _.add('back_filt_mode', 'm', '(expert) Change back output filter directly.')
 _.add('boost_gamma', 't', 'Boost contrast using gamma correction')
 _.add('boost_individual', 'T', 'Boost contrast by scaling each channel to use more of its individual range')
 _.add('toggle_label_predictions', '8', 'Turn on or off display of prob label values')
-_.add('toggle_unit_jpgs', '9',
-      'Turn on or off display of loaded jpg visualization')
+_.add('toggle_unit_jpgs', '9', 'Turn on or off display of loaded jpg visualization')
 
 bindings = _

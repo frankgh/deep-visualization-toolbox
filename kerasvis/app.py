@@ -291,13 +291,23 @@ class KerasVisApp(BaseApp):
         current_layer_output = K.function([self.net.layers[0].input, K.learning_phase()],
                                           [self.net.layers[self.state.layer_idx].output])
         out = current_layer_output([self.state.active_signal, 0])[0]
-        layer_dat_3D = out[0].T
-        img_width, img_height = get_tiles_height_width_ratio(layer_dat_3D.shape[1],
-                                                             self.settings.kerasvis_layers_aspect_ratio)
 
-        pad = np.zeros((layer_dat_3D.shape[0], ((img_width * img_height) - layer_dat_3D.shape[1])))
-        layer_dat_3D = np.concatenate((layer_dat_3D, pad), axis=1)
-        layer_dat_3D = np.reshape(layer_dat_3D, (layer_dat_3D.shape[0], img_width, img_height))
+        state_layers_pane_filter_mode = self.state.layers_pane_filter_mode
+        assert state_layers_pane_filter_mode in (0, 1)
+
+        if state_layers_pane_filter_mode == 0:
+            layer_dat_3D = out[0].T
+
+            img_width, img_height = get_tiles_height_width_ratio(layer_dat_3D.shape[1],
+                                                                 self.settings.kerasvis_layers_aspect_ratio)
+
+            pad = np.zeros((layer_dat_3D.shape[0], ((img_width * img_height) - layer_dat_3D.shape[1])))
+            layer_dat_3D = np.concatenate((layer_dat_3D, pad), axis=1)
+            layer_dat_3D = np.reshape(layer_dat_3D, (layer_dat_3D.shape[0], img_width, img_height))
+
+        elif state_layers_pane_filter_mode == 1:
+            layer_dat_3D = out[0].T
+            layer_dat_3D = np.average(layer_dat_3D, axis=1)
 
         if len(layer_dat_3D.shape) == 1:
             layer_dat_3D = layer_dat_3D[:, np.newaxis, np.newaxis]
@@ -581,7 +591,7 @@ class KerasVisApp(BaseApp):
         lines.append([FormattedString('', defaults, width=120, align='right'),
                       FormattedString(nav_string, defaults)])
 
-        for tag in ('sel_layer_left', 'sel_layer_right', 'zoom_mode', 'pattern_mode',
+        for tag in ('sel_layer_left', 'sel_layer_right', 'zoom_mode', 'filter_mode', 'pattern_mode',
                     'ez_back_mode_loop', 'freeze_back_unit', 'show_back', 'back_mode', 'back_filt_mode',
                     'boost_gamma', 'boost_individual', 'reset_state'):
             key_strings, help_string = self.bindings.get_key_help(tag)
