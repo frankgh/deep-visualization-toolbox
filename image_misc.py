@@ -54,22 +54,6 @@ def cv2_read_cap_rgb(cap, saveto=None):
     return frame
 
 
-def plt_plot_filter(data):
-    fig = Figure()
-    canvas = FigureCanvas(fig)
-    ax = fig.add_subplot(111)
-    ax.plot(data, linewidth=1)
-    fig.subplots_adjust(hspace=0)
-    canvas.draw()
-
-    l, b, w, h = fig.bbox.bounds
-    w, h = int(w), int(h)
-
-    im = np.fromstring(canvas.tostring_rgb(), dtype='uint8')
-    im.shape = h, w, 3
-    return im
-
-
 def plt_plot_signal(data, labels):
     fig = Figure()
     canvas = FigureCanvas(fig)
@@ -221,6 +205,31 @@ def tile_images_normalize(data, c01=False, boost_indiv=0.0, boost_gamma=1.0, sin
         data = np.tile(data[:, :, :, np.newaxis], 3)
 
     return data
+
+def plt_plot_filter(data, ):
+
+    # TODO: Francisco Guerrero
+    fig = Figure()
+    canvas = FigureCanvas(fig)
+    ax = fig.add_subplot(111)
+    ax.plot(data, linewidth=1)
+    fig.subplots_adjust(hspace=0)
+    canvas.draw()
+
+    for i in range(data.shape[0]):
+
+        row = 1
+        column = 1
+
+        ax = fig.add_subplot(data.shape[0], 1, (i + 1), axisbelow=False, sharex=ax, sharey=ax)
+        ax.plot(data[i], linewidth=1)
+
+    l, b, w, h = fig.bbox.bounds
+    w, h = int(w), int(h)
+
+    im = np.fromstring(canvas.tostring_rgb(), dtype='uint8')
+    im.shape = h, w, 3
+    return im
 
 
 def tile_images_make_tiles(data, padsize=1, padval=0, hw=None, highlights=None):
