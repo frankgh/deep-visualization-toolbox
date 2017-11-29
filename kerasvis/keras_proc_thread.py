@@ -1,4 +1,7 @@
 import time
+import timeit
+
+from keras import backend as K
 
 from codependent_thread import CodependentThread
 from misc import WithTimer
@@ -75,7 +78,24 @@ class KerasProcThread(CodependentThread):
 
                 with WithTimer('KerasProcThread:forward', quiet=self.debug_level < 1):
                     with self.graph.as_default():
-                        self.predictions = self.net.predict(frame, batch_size=1, verbose=self.debug_level)[0]
+                        start_time = timeit.default_timer()
+                        # intermediate_layer_model = Model(inputs=self.net.input,
+                        #                                  outputs=self.net.layers[self.state.layer_idx].output)
+                        # final_layer_model = Model(inputs=self.net.layers[self.state.layer_idx+1].input,
+                        #                           outputs=self.net.layers[-1].output)
+                        # intermediate_output = intermediate_layer_model.predict(frame, verbose=self.debug_level)
+                        # final_output = final_layer_model.predict(intermediate_output, verbose=self.debug_level)
+
+                        inp = self.net.input
+                        outputs = [self.net.layers[self.state.layer_idx].output, self.net.layers[-1].output]
+                        functor = K.function([inp] + [K.learning_phase()], outputs)  # evaluation function
+                        layer_outs = functor([frame, 0.])
+
+                        self.intermediate_predictions = layer_outs[0][0]
+                        self.predictions = layer_outs[1][0]
+                        # self.predictions = self.net.predict(frame, verbose=self.debug_level)[0]
+                        elapsed = timeit.default_timer() - start_time
+                        print('self.net.predict function ran for', elapsed)
 
                     if self.debug_level == 3:
                         print ('KerasProcThread:forward self.net.predict:', self.predictions)

@@ -1,6 +1,7 @@
 import os
 import re
 import time
+import timeit
 from threading import RLock
 
 import numpy as np
@@ -26,6 +27,8 @@ class InputSignalFetcher(CodependentThread):
         self.settings = settings
         self.static_file_stretch_mode = self.settings.static_file_stretch_mode
         self.sleep_after_read_frame = settings.input_updater_sleep_after_read_frame
+
+        self.signal_zoom_level = 1.0
 
         # Static file input
         self.latest_static_filename = None
@@ -92,6 +95,24 @@ class InputSignalFetcher(CodependentThread):
     def increment_static_file_idx(self, amount=1):
         with self.lock:
             self.static_file_idx_increment += amount
+
+    def increment_zoom_level(self, amount=0.05):
+        with self.lock:
+            self.signal_zoom_level = min(1.1, max(0.05, self.signal_zoom_level + amount))
+            start_time = timeit.default_timer()
+            im = plt_plot_signal(
+                self.latest_static_file_data[self.signal_idx],
+                self.signal_labels,
+                self.signal_zoom_level
+            )
+            elapsed = timeit.default_timer() - start_time
+            print('plt_plot_signal function ran for', elapsed)
+            if not self.static_file_stretch_mode:
+                im = crop_to_square(im)
+            self.latest_static_frame = im
+            self.latest_label = self.latest_static_file_labels[self.signal_idx]
+            self._increment_and_set_frame(self.latest_static_frame,
+                                          self.latest_static_file_data[self.signal_idx:self.signal_idx + 1])
 
     def increment_signal_idx(self, amount=1):
         with self.lock:
@@ -162,7 +183,15 @@ class InputSignalFetcher(CodependentThread):
             if new_data_file_loaded or self.latest_static_frame is None or self.last_signal_idx is None or self.last_signal_idx != self.signal_idx:
                 self.last_signal_idx = self.signal_idx
 
-                im = plt_plot_signal(self.latest_static_file_data[self.signal_idx], self.signal_labels)
+                start_time = timeit.default_timer()
+                im = plt_plot_signal(
+                    self.latest_static_file_data[self.signal_idx],
+                    self.signal_labels,
+                    self.signal_zoom_level
+                )
+                elapsed = timeit.default_timer() - start_time
+                print('plt_plot_signal function ran for', elapsed)
+
                 if not self.static_file_stretch_mode:
                     im = crop_to_square(im)
                 self.latest_static_frame = im

@@ -3,12 +3,13 @@
 
 import StringIO
 import os
+import timeit
 
 import cv2
 import keras
-import keras.backend as K
 import numpy as np
 import tensorflow as tf
+from keras.models import Model
 from keras.models import load_model
 
 from app_base import BaseApp
@@ -288,9 +289,17 @@ class KerasVisApp(BaseApp):
         if self.state.active_signal is None:
             return None
 
-        current_layer_output = K.function([self.net.layers[0].input, K.learning_phase()],
-                                          [self.net.layers[self.state.layer_idx].output])
-        out = current_layer_output([self.state.active_signal, 0])[0]
+        start_time = timeit.default_timer()
+        # current_layer_output = K.function([self.net.layers[0].input, K.learning_phase()],
+        #                                   [self.net.layers[self.state.layer_idx].output])
+        # out = current_layer_output([self.state.active_signal, 0])[0]
+
+        current_layer_output = Model(inputs=self.net.input,
+                                     outputs=self.net.layers[self.state.layer_idx].output)
+        out = current_layer_output.predict(self.state.active_signal)
+
+        elapsed = timeit.default_timer() - start_time
+        print('K.function function ran for', elapsed)
 
         state_layers_pane_filter_mode = self.state.layers_pane_filter_mode
         assert state_layers_pane_filter_mode in (0, 1)
@@ -591,9 +600,10 @@ class KerasVisApp(BaseApp):
         lines.append([FormattedString('', defaults, width=120, align='right'),
                       FormattedString(nav_string, defaults)])
 
-        for tag in ('sel_layer_left', 'sel_layer_right', 'zoom_mode', 'filter_mode', 'pattern_mode',
-                    'ez_back_mode_loop', 'freeze_back_unit', 'show_back', 'back_mode', 'back_filt_mode',
-                    'boost_gamma', 'boost_individual', 'reset_state'):
+        for tag in ('sel_layer_left', 'sel_layer_right', 'zoom_mode',
+                    'filter_mode', 'pattern_mode', 'ez_back_mode_loop', 'freeze_back_unit',
+                    'show_back', 'back_mode', 'back_filt_mode', 'boost_gamma', 'boost_individual',
+                    'reset_state'):
             key_strings, help_string = self.bindings.get_key_help(tag)
             label = '%10s:' % (','.join(key_strings))
             lines.append([FormattedString(label, defaults, width=120, align='right'),

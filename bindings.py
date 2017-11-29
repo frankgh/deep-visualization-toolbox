@@ -65,6 +65,8 @@ _.add_multikey('static_file_decrement', ['w', 'pgup'], 'Load previous static fil
 _.add('signal_increment', '7', 'Load next signal from loaded static file')
 _.add('signal_decrement', '6', 'Load previous signal from loaded static file')
 _.add('help_mode', 'h', 'Toggle this help screen')
+_.add('zoom_in', '+', 'Zoom into signal')
+_.add('zoom_out', '-', 'Zoom out signal')
 _.add('stretch_mode', '0', 'Toggle between cropping and stretching static files to be square')
 _.add('debug_level', '5', 'Cycle debug level between 0 (quiet), 1 (some timing info) and 2 (all timing info)')
 _.add('quit', 'q', 'Quit')

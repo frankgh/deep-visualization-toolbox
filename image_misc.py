@@ -54,27 +54,31 @@ def cv2_read_cap_rgb(cap, saveto=None):
     return frame
 
 
-def plt_plot_signal(data, labels):
+def plt_plot_signal(data, labels, zoom_level=1.0):
     fig = Figure()
     canvas = FigureCanvas(fig)
     ax = None
     color = iter(cm.rainbow(np.linspace(0, 1, data.shape[1])))
 
+    s = 0
+    e = s + int(zoom_level * data.shape[0])
+
     for i in range(data.shape[1]):
         c = next(color)
         label = labels[i] if labels is not None else 'Signal {}'.format(i + 1)
         ax = fig.add_subplot(data.shape[1], 1, (i + 1), axisbelow=False, sharex=ax, sharey=ax)
-        ax.plot(data[6000:9000, i], linewidth=1, label=label, c=c)
+        ax.plot(data[s:e, i], linewidth=1, label=label, c=c)
         ax.legend(loc='lower right')
 
-    fig.subplots_adjust(hspace=0)
-    canvas.draw()  # draw the canvas, cache the renderer
+        fig.subplots_adjust(hspace=0)
+        fig.tight_layout()
+        canvas.draw()  # draw the canvas, cache the renderer
 
-    l, b, w, h = fig.bbox.bounds
-    w, h = int(w), int(h)
+        l, b, w, h = fig.bbox.bounds
+        w, h = int(w), int(h)
 
-    im = np.fromstring(canvas.tostring_rgb(), dtype='uint8')
-    im.shape = h, w, 3
+        im = np.fromstring(canvas.tostring_rgb(), dtype='uint8')
+        im.shape = h, w, 3
     return im
 
 
@@ -206,8 +210,8 @@ def tile_images_normalize(data, c01=False, boost_indiv=0.0, boost_gamma=1.0, sin
 
     return data
 
-def plt_plot_filter(data, ):
 
+def plt_plot_filter(data, ):
     # TODO: Francisco Guerrero
     fig = Figure()
     canvas = FigureCanvas(fig)
@@ -217,7 +221,6 @@ def plt_plot_filter(data, ):
     canvas.draw()
 
     for i in range(data.shape[0]):
-
         row = 1
         column = 1
 

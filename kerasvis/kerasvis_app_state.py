@@ -48,7 +48,7 @@ class KerasVisAppState(object):
         self.back_filt_mode = 'raw'  # 'raw', 'gray', 'norm', 'normblur'
         self.pattern_mode = False  # Whether or not to show desired patterns instead of activations in layers pane
         self.layers_pane_zoom_mode = 0  # 0: off, 1: zoom selected (and show pref in small pane), 2: zoom backprop
-        self.layers_pane_filter_mode = 0 # 0: square, 1: average
+        self.layers_pane_filter_mode = 0  # 0: square, 1: average
         self.layers_show_back = False  # False: show forward activations. True: show backward diffs
         self.show_label_predictions = self.settings.kerasvis_init_show_label_predictions
         self.show_unit_jpgs = self.settings.kerasvis_init_show_unit_jpgs

@@ -70,6 +70,8 @@ def main():
     check_key('left')
     check_key('right')
     check_key('esc')
+    check_key('+')
+    check_key('-')
 
 
 if __name__ == '__main__':
