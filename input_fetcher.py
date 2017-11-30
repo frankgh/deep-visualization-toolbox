@@ -28,6 +28,7 @@ class InputSignalFetcher(CodependentThread):
         self.static_file_stretch_mode = self.settings.static_file_stretch_mode
         self.sleep_after_read_frame = settings.input_updater_sleep_after_read_frame
 
+        self.signal_apply_filter = False
         self.signal_zoom_level = 1.0
 
         # Static file input
@@ -96,21 +97,17 @@ class InputSignalFetcher(CodependentThread):
         with self.lock:
             self.static_file_idx_increment += amount
 
+    def toggle_filter(self):
+        with self.lock:
+            self.signal_apply_filter = not self.signal_apply_filter
+            self._plot()
+            self._increment_and_set_frame(self.latest_static_frame,
+                                          self.latest_static_file_data[self.signal_idx:self.signal_idx + 1])
+
     def increment_zoom_level(self, amount=0.05):
         with self.lock:
             self.signal_zoom_level = min(1.1, max(0.05, self.signal_zoom_level + amount))
-            start_time = timeit.default_timer()
-            im = plt_plot_signal(
-                self.latest_static_file_data[self.signal_idx],
-                self.signal_labels,
-                self.signal_zoom_level
-            )
-            elapsed = timeit.default_timer() - start_time
-            print('plt_plot_signal function ran for', elapsed)
-            if not self.static_file_stretch_mode:
-                im = crop_to_square(im)
-            self.latest_static_frame = im
-            self.latest_label = self.latest_static_file_labels[self.signal_idx]
+            self._plot()
             self._increment_and_set_frame(self.latest_static_frame,
                                           self.latest_static_file_data[self.signal_idx:self.signal_idx + 1])
 
@@ -121,6 +118,7 @@ class InputSignalFetcher(CodependentThread):
     def _increment_and_set_frame(self, frame, signal):
         assert frame is not None
         assert signal is not None
+
         with self.lock:
             self.latest_frame_idx += 1
             self.latest_frame_data = frame
@@ -182,20 +180,21 @@ class InputSignalFetcher(CodependentThread):
 
             if new_data_file_loaded or self.latest_static_frame is None or self.last_signal_idx is None or self.last_signal_idx != self.signal_idx:
                 self.last_signal_idx = self.signal_idx
-
-                start_time = timeit.default_timer()
-                im = plt_plot_signal(
-                    self.latest_static_file_data[self.signal_idx],
-                    self.signal_labels,
-                    self.signal_zoom_level
-                )
-                elapsed = timeit.default_timer() - start_time
-                print('plt_plot_signal function ran for', elapsed)
-
-                if not self.static_file_stretch_mode:
-                    im = crop_to_square(im)
-                self.latest_static_frame = im
-                self.latest_label = self.latest_static_file_labels[self.signal_idx]
+                self._plot()
 
             self._increment_and_set_frame(self.latest_static_frame,
                                           self.latest_static_file_data[self.signal_idx:self.signal_idx + 1])
+
+    def _plot(self):
+        start_time = timeit.default_timer()
+        sig = self.latest_static_file_data[self.signal_idx]
+        if self.signal_apply_filter and hasattr(self.settings, 'signal_filter_fn'):
+            sig = self.settings.signal_filter_fn(sig)
+        im = plt_plot_signal(sig, self.signal_labels, self.signal_zoom_level)
+        elapsed = timeit.default_timer() - start_time
+        print('plt_plot_signal function ran for', elapsed)
+
+        if not self.static_file_stretch_mode:
+            im = crop_to_square(im)
+        self.latest_static_frame = im
+        self.latest_label = self.latest_static_file_labels[self.signal_idx]

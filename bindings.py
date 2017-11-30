@@ -65,6 +65,7 @@ _.add_multikey('static_file_decrement', ['w', 'pgup'], 'Load previous static fil
 _.add('signal_increment', '7', 'Load next signal from loaded static file')
 _.add('signal_decrement', '6', 'Load previous signal from loaded static file')
 _.add('help_mode', 'h', 'Toggle this help screen')
+_.add('custom_filter', 'g', 'Apply custom filter (signal_filter_fn defined in settings_local)')
 _.add('zoom_in', '+', 'Zoom into signal')
 _.add('zoom_out', '-', 'Zoom out signal')
 _.add('stretch_mode', '0', 'Toggle between cropping and stretching static files to be square')

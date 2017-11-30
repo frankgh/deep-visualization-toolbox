@@ -1,5 +1,4 @@
 import time
-import timeit
 
 from keras import backend as K
 
@@ -23,10 +22,6 @@ class KerasProcThread(CodependentThread):
         self.loop_sleep = loop_sleep
         self.pause_after_keys = pause_after_keys
         self.debug_level = 0
-        self.predictions = None
-
-    def get_predictions(self):
-        return self.predictions
 
     def run(self):
         print 'KerasProcThread.run called'
@@ -78,27 +73,17 @@ class KerasProcThread(CodependentThread):
 
                 with WithTimer('KerasProcThread:forward', quiet=self.debug_level < 1):
                     with self.graph.as_default():
-                        start_time = timeit.default_timer()
-                        # intermediate_layer_model = Model(inputs=self.net.input,
-                        #                                  outputs=self.net.layers[self.state.layer_idx].output)
-                        # final_layer_model = Model(inputs=self.net.layers[self.state.layer_idx+1].input,
-                        #                           outputs=self.net.layers[-1].output)
-                        # intermediate_output = intermediate_layer_model.predict(frame, verbose=self.debug_level)
-                        # final_output = final_layer_model.predict(intermediate_output, verbose=self.debug_level)
-
-                        inp = self.net.input
-                        outputs = [self.net.layers[self.state.layer_idx].output, self.net.layers[-1].output]
-                        functor = K.function([inp] + [K.learning_phase()], outputs)  # evaluation function
+                        # start_time = timeit.default_timer()
+                        outputs = [layer.output for layer in self.net.layers]  # all layer outputs
+                        functor = K.function([self.net.input, K.learning_phase()],
+                                             outputs)  # evaluation function
                         layer_outs = functor([frame, 0.])
-
-                        self.intermediate_predictions = layer_outs[0][0]
-                        self.predictions = layer_outs[1][0]
-                        # self.predictions = self.net.predict(frame, verbose=self.debug_level)[0]
-                        elapsed = timeit.default_timer() - start_time
-                        print('self.net.predict function ran for', elapsed)
+                        self.net.intermediate_predictions = layer_outs
+                        # elapsed = timeit.default_timer() - start_time
+                        # print('self.net.predict function ran for', elapsed)
 
                     if self.debug_level == 3:
-                        print ('KerasProcThread:forward self.net.predict:', self.predictions)
+                        print ('KerasProcThread:forward self.net.predict:', self.net.intermediate_predictions[-1][0])
 
             if run_back:
                 diffs = self.net.blobs[backprop_layer].diff * 0

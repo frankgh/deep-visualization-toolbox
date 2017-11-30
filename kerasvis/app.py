@@ -3,13 +3,11 @@
 
 import StringIO
 import os
-import timeit
 
 import cv2
 import keras
 import numpy as np
 import tensorflow as tf
-from keras.models import Model
 from keras.models import load_model
 
 from app_base import BaseApp
@@ -194,10 +192,11 @@ class KerasVisApp(BaseApp):
         clr_0 = to_255(self.settings.kerasvis_class_clr_0)
         clr_1 = to_255(self.settings.kerasvis_class_clr_1)
 
-        probs_flat = self.proc_thread.get_predictions()
-
-        if probs_flat is None:
+        if not hasattr(self.net, 'intermediate_predictions') or \
+                        self.net.intermediate_predictions is None:
             probs_flat = np.array([0, 0, 0, 0, 0])
+        else:
+            probs_flat = self.net.intermediate_predictions[-1][0]
 
         top_5 = probs_flat.argsort()[-1:-6:-1]
 
@@ -286,20 +285,11 @@ class KerasVisApp(BaseApp):
     def _draw_layer_pane(self, pane):
         '''Returns the data shown in highres format, b01c order.'''
 
-        if self.state.active_signal is None:
+        if not hasattr(self.net, 'intermediate_predictions') or \
+                        self.net.intermediate_predictions is None:
             return None
 
-        start_time = timeit.default_timer()
-        # current_layer_output = K.function([self.net.layers[0].input, K.learning_phase()],
-        #                                   [self.net.layers[self.state.layer_idx].output])
-        # out = current_layer_output([self.state.active_signal, 0])[0]
-
-        current_layer_output = Model(inputs=self.net.input,
-                                     outputs=self.net.layers[self.state.layer_idx].output)
-        out = current_layer_output.predict(self.state.active_signal)
-
-        elapsed = timeit.default_timer() - start_time
-        print('K.function function ran for', elapsed)
+        out = self.net.intermediate_predictions[self.state.layer_idx]
 
         state_layers_pane_filter_mode = self.state.layers_pane_filter_mode
         assert state_layers_pane_filter_mode in (0, 1)
