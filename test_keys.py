@@ -72,6 +72,8 @@ def main():
     check_key('esc')
     check_key('+')
     check_key('-')
+    check_key('_')
+    check_key('=')
 
 
 if __name__ == '__main__':

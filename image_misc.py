@@ -1,5 +1,7 @@
 #! /usr/bin/env python
 
+import timeit
+
 import cv2
 import numpy as np
 import skimage
@@ -66,19 +68,66 @@ def plt_plot_signal(data, labels, zoom_level=1.0):
     for i in range(data.shape[1]):
         c = next(color)
         label = labels[i] if labels is not None else 'Signal {}'.format(i + 1)
-        ax = fig.add_subplot(data.shape[1], 1, (i + 1), axisbelow=False, sharex=ax, sharey=ax)
+        if ax is not None:
+            ax = fig.add_subplot(data.shape[1], 1, (i + 1), axisbelow=False, sharex=ax)
+        else:
+            ax = fig.add_subplot(data.shape[1], 1, (i + 1), axisbelow=False)
+
         ax.plot(data[s:e, i], linewidth=1, label=label, c=c)
+        # ax.set_adjustable('box-forced')
+        ax.set_xlim(right=e)
+        ax.get_xaxis().set_visible(i == data.shape[1] - 1)
         ax.legend(loc='lower right')
 
-        fig.subplots_adjust(hspace=0)
-        fig.tight_layout()
-        canvas.draw()  # draw the canvas, cache the renderer
+    fig.tight_layout()
+    fig.subplots_adjust(hspace=0)
+    canvas.draw()  # draw the canvas, cache the renderer
 
-        l, b, w, h = fig.bbox.bounds
-        w, h = int(w), int(h)
+    l, b, w, h = fig.bbox.bounds
+    w, h = int(w), int(h)
 
-        im = np.fromstring(canvas.tostring_rgb(), dtype='uint8')
-        im.shape = h, w, 3
+    im = np.fromstring(canvas.tostring_rgb(), dtype='uint8')
+    im.shape = h, w, 3
+    return im
+
+
+def plt_plot_filters(data, shape, rows, cols):
+    start_time = timeit.default_timer()
+    shape = (np.math.ceil(shape[1] / 80), np.math.ceil(shape[0] / 80))
+    print(shape)
+    fig = Figure(figsize=shape)
+    canvas = FigureCanvas(fig)
+    ax = None
+    elapsed = timeit.default_timer() - start_time
+    print('plt_plot_filters-setup function ran for {}'.format(elapsed))
+
+    start_time = timeit.default_timer()
+    for i in xrange(data.shape[0]):
+        ax = fig.add_subplot(rows, cols, (i + 1), axisbelow=False, sharex=ax, sharey=ax)
+        ax.plot(data[i], linewidth=1)
+        ax.set_xlim(right=data.shape[1] - 1)
+        ax.get_xaxis().set_visible(False)
+        ax.get_yaxis().set_visible(False)
+        # ax.get_xaxis().set_visible(i >= ((rows - 1) * cols))
+        # ax.get_yaxis().set_visible(i % cols == 0)
+
+    elapsed = timeit.default_timer() - start_time
+    print('plt_plot_filters-plot function ran for {}'.format(elapsed))
+
+    start_time = timeit.default_timer()
+    fig.tight_layout()
+    fig.subplots_adjust(hspace=0, wspace=0)
+    canvas.draw()  # draw the canvas, cache the renderer
+    elapsed = timeit.default_timer() - start_time
+    print('plt_plot_filters-postplot function ran for {}'.format(elapsed))
+
+    start_time = timeit.default_timer()
+    l, b, w, h = fig.bbox.bounds
+    w, h = int(w), int(h)
+    im = np.fromstring(canvas.tostring_rgb(), dtype='uint8')
+    im.shape = h, w, 3
+    elapsed = timeit.default_timer() - start_time
+    print('plt_plot_filters-reshape function ran for {}'.format(elapsed))
     return im
 
 
@@ -211,30 +260,6 @@ def tile_images_normalize(data, c01=False, boost_indiv=0.0, boost_gamma=1.0, sin
     return data
 
 
-def plt_plot_filter(data, ):
-    # TODO: Francisco Guerrero
-    fig = Figure()
-    canvas = FigureCanvas(fig)
-    ax = fig.add_subplot(111)
-    ax.plot(data, linewidth=1)
-    fig.subplots_adjust(hspace=0)
-    canvas.draw()
-
-    for i in range(data.shape[0]):
-        row = 1
-        column = 1
-
-        ax = fig.add_subplot(data.shape[0], 1, (i + 1), axisbelow=False, sharex=ax, sharey=ax)
-        ax.plot(data[i], linewidth=1)
-
-    l, b, w, h = fig.bbox.bounds
-    w, h = int(w), int(h)
-
-    im = np.fromstring(canvas.tostring_rgb(), dtype='uint8')
-    im.shape = h, w, 3
-    return im
-
-
 def tile_images_make_tiles(data, padsize=1, padval=0, hw=None, highlights=None):
     if hw:
         height, width = hw
@@ -259,7 +284,7 @@ def tile_images_make_tiles(data, padsize=1, padval=0, hw=None, highlights=None):
     if highlights is not None:
         assert len(highlights) == data.shape[0]
     padding = ((0, width * height - data.shape[0]), (padsize, padsize), (padsize, padsize)) + ((0, 0),) * (
-        data.ndim - 3)
+            data.ndim - 3)
 
     # First pad with constant vals
     try:
@@ -413,9 +438,9 @@ def resize_to_fit(img, out_max_shape,
 class FormattedString(object):
     def __init__(self, string, defaults, face=None, fsize=None, clr=None, thick=None, align=None, width=None):
         self.string = string
-        self.face = face if face  else defaults['face']
+        self.face = face if face else defaults['face']
         self.fsize = fsize if fsize else defaults['fsize']
-        self.clr = clr if clr   else defaults['clr']
+        self.clr = clr if clr else defaults['clr']
         self.thick = thick if thick else defaults['thick']
         self.width = width  # if None: calculate width automatically
         self.align = align if align else defaults.get('align', 'left')

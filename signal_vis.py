@@ -304,11 +304,15 @@ class SignalVis(object):
                 elif tag == 'signal_decrement':
                     self.input_updater.increment_signal_idx(-1)
                 elif tag == 'zoom_in':
-                    self.input_updater.increment_zoom_level(-0.05)
+                    self.input_updater.increment_zoom_level(-0.025)
+                elif tag == 'zoom_out':
+                    self.input_updater.increment_zoom_level(0.025)
+                elif tag == 'move_left':
+                    pass
+                elif tag == 'move_right':
+                    pass
                 elif tag == 'custom_filter':
                     self.input_updater.toggle_filter()
-                elif tag == 'zoom_out':
-                    self.input_updater.increment_zoom_level(0.05)
                 else:
                     return key, False
             else:
@@ -379,7 +383,7 @@ class SignalVis(object):
 
         for tag in (
                 'help_mode', 'static_file_increment', 'static_file_decrement', 'signal_increment', 'signal_decrement',
-                'custom_filter', 'zoom_in', 'zoom_out', 'stretch_mode', 'quit'):
+                'custom_filter', 'zoom_in', 'zoom_out', 'move_left', 'move_right', 'stretch_mode', 'quit'):
             key_strings, help_string = self.bindings.get_key_help(tag)
             label = '%10s:' % (','.join(key_strings))
             lines.append([FormattedString(label, defaults, width=120, align='right'),

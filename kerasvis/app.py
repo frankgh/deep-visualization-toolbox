@@ -3,6 +3,7 @@
 
 import StringIO
 import os
+import timeit
 
 import cv2
 import keras
@@ -11,9 +12,9 @@ import tensorflow as tf
 from keras.models import load_model
 
 from app_base import BaseApp
-from image_misc import FormattedString, cv2_typeset_text, to_255
-from image_misc import norm01, norm01c, tile_images_normalize, ensure_float01, tile_images_make_tiles, \
-    ensure_uint255_and_resize_to_fit, get_tiles_height_width_ratio
+from image_misc import FormattedString, cv2_typeset_text, to_255, norm01, norm01c, tile_images_normalize, \
+    ensure_float01, tile_images_make_tiles, ensure_uint255_and_resize_to_fit, get_tiles_height_width_ratio, \
+    plt_plot_filters
 from jpg_vis_loading_thread import JPGVisLoadingThread
 from kerasvis.keras_proc_thread import KerasProcThread
 from kerasvis_app_state import KerasVisAppState
@@ -193,7 +194,7 @@ class KerasVisApp(BaseApp):
         clr_1 = to_255(self.settings.kerasvis_class_clr_1)
 
         if not hasattr(self.net, 'intermediate_predictions') or \
-                        self.net.intermediate_predictions is None:
+                self.net.intermediate_predictions is None:
             probs_flat = np.array([0, 0, 0, 0, 0])
         else:
             probs_flat = self.net.intermediate_predictions[-1][0]
@@ -286,149 +287,168 @@ class KerasVisApp(BaseApp):
         '''Returns the data shown in highres format, b01c order.'''
 
         if not hasattr(self.net, 'intermediate_predictions') or \
-                        self.net.intermediate_predictions is None:
+                self.net.intermediate_predictions is None:
             return None
 
         out = self.net.intermediate_predictions[self.state.layer_idx]
+        # print '_draw_layer_pane'
 
         state_layers_pane_filter_mode = self.state.layers_pane_filter_mode
-        assert state_layers_pane_filter_mode in (0, 1)
+        assert state_layers_pane_filter_mode in (0, 1, 2)
+
+        layer_dat_3D = out[0].T
+        n_tiles = layer_dat_3D.shape[0]
+        tile_rows, tile_cols = self.net_layer_info[self.state.layer]['tiles_rc']
 
         if state_layers_pane_filter_mode == 0:
-            layer_dat_3D = out[0].T
+            if len(layer_dat_3D.shape) > 1:
+                img_width, img_height = get_tiles_height_width_ratio(layer_dat_3D.shape[1],
+                                                                     self.settings.kerasvis_layers_aspect_ratio)
 
-            img_width, img_height = get_tiles_height_width_ratio(layer_dat_3D.shape[1],
-                                                                 self.settings.kerasvis_layers_aspect_ratio)
-
-            pad = np.zeros((layer_dat_3D.shape[0], ((img_width * img_height) - layer_dat_3D.shape[1])))
-            layer_dat_3D = np.concatenate((layer_dat_3D, pad), axis=1)
-            layer_dat_3D = np.reshape(layer_dat_3D, (layer_dat_3D.shape[0], img_width, img_height))
+                pad = np.zeros((layer_dat_3D.shape[0], ((img_width * img_height) - layer_dat_3D.shape[1])))
+                layer_dat_3D = np.concatenate((layer_dat_3D, pad), axis=1)
+                layer_dat_3D = np.reshape(layer_dat_3D, (layer_dat_3D.shape[0], img_width, img_height))
 
         elif state_layers_pane_filter_mode == 1:
-            layer_dat_3D = out[0].T
             layer_dat_3D = np.average(layer_dat_3D, axis=1)
+
+        elif state_layers_pane_filter_mode == 2:
+
+            if len(layer_dat_3D.shape) > 1:
+                start_time = timeit.default_timer()
+                display_3D = plt_plot_filters(layer_dat_3D, (pane.data.shape[0], pane.data.shape[1]), tile_rows,
+                                              tile_cols)
+                elapsed = timeit.default_timer() - start_time
+                print('plt_plot_filters function ran for {}'.format(elapsed))
+                display_2D_resize = ensure_uint255_and_resize_to_fit(display_3D, pane.data.shape)
+                display_3D_highres = display_3D
+            else:
+                state_layers_pane_filter_mode = 0
 
         if len(layer_dat_3D.shape) == 1:
             layer_dat_3D = layer_dat_3D[:, np.newaxis, np.newaxis]
 
-        n_tiles = layer_dat_3D.shape[0]
-        tile_rows, tile_cols = self.net_layer_info[self.state.layer]['tiles_rc']
-
-        display_3D_highres = None
-        if self.state.pattern_mode:
-            # Show desired patterns loaded from disk
-
-            load_layer = self.state.layer
-            if self.settings.kerasvis_jpgvis_remap and self.state.layer in self.settings.kerasvis_jpgvis_remap:
-                load_layer = self.settings.kerasvis_jpgvis_remap[self.state.layer]
-
-            if self.settings.kerasvis_jpgvis_layers and load_layer in self.settings.kerasvis_jpgvis_layers:
-                jpg_path = os.path.join(self.settings.kerasvis_unit_jpg_dir,
-                                        'regularized_opt', load_layer, 'whole_layer.jpg')
-
-                # Get highres version
-                # cache_before = str(self.img_cache)
-                display_3D_highres = self.img_cache.get((jpg_path, 'whole'), None)
-                # else:
-                #    display_3D_highres = None
-
-                if display_3D_highres is None:
-                    try:
-                        with WithTimer('KerasVisApp:load_sprite_image', quiet=self.debug_level < 1):
-                            display_3D_highres = load_square_sprite_image(jpg_path, n_sprites=n_tiles)
-                    except IOError:
-                        # File does not exist, so just display disabled.
-                        pass
-                    else:
-                        self.img_cache.set((jpg_path, 'whole'), display_3D_highres)
-                        # cache_after = str(self.img_cache)
-                        # print 'Cache was / is:\n  %s\n  %s' % (cache_before, cache_after)
-
-            if display_3D_highres is not None:
-                # Get lowres version, maybe. Assume we want at least one pixel for selection border.
-                row_downsamp_factor = int(
-                    np.ceil(float(display_3D_highres.shape[1]) / (pane.data.shape[0] / tile_rows - 2)))
-                col_downsamp_factor = int(
-                    np.ceil(float(display_3D_highres.shape[2]) / (pane.data.shape[1] / tile_cols - 2)))
-                ds = max(row_downsamp_factor, col_downsamp_factor)
-                if ds > 1:
-                    # print 'Downsampling by', ds
-                    display_3D = display_3D_highres[:, ::ds, ::ds, :]
-                else:
-                    display_3D = display_3D_highres
-            else:
-                display_3D = layer_dat_3D * 0  # nothing to show
-
-        else:
-
-            # Show data from network (activations or diffs)
-            if self.state.layers_show_back:
-                back_what_to_disp = self.get_back_what_to_disp()
-                if back_what_to_disp == 'disabled':
-                    layer_dat_3D_normalized = np.tile(self.settings.window_background, layer_dat_3D.shape + (1,))
-                elif back_what_to_disp == 'stale':
-                    layer_dat_3D_normalized = np.tile(self.settings.stale_background, layer_dat_3D.shape + (1,))
-                else:
-                    layer_dat_3D_normalized = tile_images_normalize(layer_dat_3D,
-                                                                    boost_indiv=self.state.layer_boost_indiv,
-                                                                    boost_gamma=self.state.layer_boost_gamma,
-                                                                    neg_pos_colors=((1, 0, 0), (0, 1, 0)))
-            else:
-                layer_dat_3D_normalized = tile_images_normalize(layer_dat_3D,
-                                                                boost_indiv=self.state.layer_boost_indiv,
-                                                                boost_gamma=self.state.layer_boost_gamma)
-            # print ' ===layer_dat_3D_normalized.shape', layer_dat_3D_normalized.shape, 'layer_dat_3D_normalized dtype', layer_dat_3D_normalized.dtype, 'range', layer_dat_3D_normalized.min(), layer_dat_3D_normalized.max()
-
-            display_3D = layer_dat_3D_normalized
-
-        # Convert to float if necessary:
-        display_3D = ensure_float01(display_3D)
-        # Upsample gray -> color if necessary
-        #   e.g. (1000,32,32) -> (1000,32,32,3)
-        if len(display_3D.shape) == 3:
-            display_3D = display_3D[:, :, :, np.newaxis]
-        if display_3D.shape[3] == 1:
-            display_3D = np.tile(display_3D, (1, 1, 1, 3))
-        # Upsample unit length tiles to give a more sane tile / highlight ratio
-        #   e.g. (1000,1,1,3) -> (1000,3,3,3)
-        if display_3D.shape[1] == 1:
-            display_3D = np.tile(display_3D, (1, 3, 3, 1))
         if self.state.layers_show_back and not self.state.pattern_mode:
             padval = self.settings.kerasvis_layer_clr_back_background
         else:
             padval = self.settings.window_background
 
-        highlights = [None] * n_tiles
-        with self.state.lock:
-            if self.state.cursor_area == 'bottom':
-                highlights[self.state.selected_unit] = self.settings.kerasvis_layer_clr_cursor  # in [0,1] range
-            if self.state.backprop_selection_frozen and self.state.layer == self.state.backprop_layer:
-                highlights[self.state.backprop_unit] = self.settings.kerasvis_layer_clr_back_sel  # in [0,1] range
+        if state_layers_pane_filter_mode == 0 or state_layers_pane_filter_mode == 1:
+            display_3D_highres = None
+            if self.state.pattern_mode:
+                # Show desired patterns loaded from disk
 
-        _, display_2D = tile_images_make_tiles(display_3D, hw=(tile_rows, tile_cols), padval=padval,
-                                               highlights=highlights)
+                load_layer = self.state.layer
+                if self.settings.kerasvis_jpgvis_remap and self.state.layer in self.settings.kerasvis_jpgvis_remap:
+                    load_layer = self.settings.kerasvis_jpgvis_remap[self.state.layer]
 
-        if display_3D_highres is None:
-            display_3D_highres = display_3D
+                if self.settings.kerasvis_jpgvis_layers and load_layer in self.settings.kerasvis_jpgvis_layers:
+                    jpg_path = os.path.join(self.settings.kerasvis_unit_jpg_dir,
+                                            'regularized_opt', load_layer, 'whole_layer.jpg')
 
-        # Display pane based on layers_pane_zoom_mode
-        state_layers_pane_zoom_mode = self.state.layers_pane_zoom_mode
-        assert state_layers_pane_zoom_mode in (0, 1, 2)
-        if state_layers_pane_zoom_mode == 0:
-            # Mode 0: normal display (activations or patterns)
-            display_2D_resize = ensure_uint255_and_resize_to_fit(display_2D, pane.data.shape)
-        elif state_layers_pane_zoom_mode == 1:
-            # Mode 1: zoomed selection
-            unit_data = display_3D_highres[self.state.selected_unit]
-            display_2D_resize = ensure_uint255_and_resize_to_fit(unit_data, pane.data.shape)
-        else:
-            # Mode 2: zoomed backprop pane
-            display_2D_resize = ensure_uint255_and_resize_to_fit(display_2D, pane.data.shape) * 0
+                    # Get highres version
+                    # cache_before = str(self.img_cache)
+                    display_3D_highres = self.img_cache.get((jpg_path, 'whole'), None)
+                    # else:
+                    #    display_3D_highres = None
+
+                    if display_3D_highres is None:
+                        try:
+                            with WithTimer('KerasVisApp:load_sprite_image', quiet=self.debug_level < 1):
+                                display_3D_highres = load_square_sprite_image(jpg_path, n_sprites=n_tiles)
+                        except IOError:
+                            # File does not exist, so just display disabled.
+                            pass
+                        else:
+                            self.img_cache.set((jpg_path, 'whole'), display_3D_highres)
+                            # cache_after = str(self.img_cache)
+                            # print 'Cache was / is:\n  %s\n  %s' % (cache_before, cache_after)
+
+                if display_3D_highres is not None:
+                    # Get lowres version, maybe. Assume we want at least one pixel for selection border.
+                    row_downsamp_factor = int(
+                        np.ceil(float(display_3D_highres.shape[1]) / (pane.data.shape[0] / tile_rows - 2)))
+                    col_downsamp_factor = int(
+                        np.ceil(float(display_3D_highres.shape[2]) / (pane.data.shape[1] / tile_cols - 2)))
+                    ds = max(row_downsamp_factor, col_downsamp_factor)
+                    if ds > 1:
+                        # print 'Downsampling by', ds
+                        display_3D = display_3D_highres[:, ::ds, ::ds, :]
+                    else:
+                        display_3D = display_3D_highres
+                else:
+                    display_3D = layer_dat_3D * 0  # nothing to show
+
+            else:
+
+                # Show data from network (activations or diffs)
+                if self.state.layers_show_back:
+                    back_what_to_disp = self.get_back_what_to_disp()
+                    if back_what_to_disp == 'disabled':
+                        layer_dat_3D_normalized = np.tile(self.settings.window_background, layer_dat_3D.shape + (1,))
+                    elif back_what_to_disp == 'stale':
+                        layer_dat_3D_normalized = np.tile(self.settings.stale_background, layer_dat_3D.shape + (1,))
+                    else:
+                        layer_dat_3D_normalized = tile_images_normalize(layer_dat_3D,
+                                                                        boost_indiv=self.state.layer_boost_indiv,
+                                                                        boost_gamma=self.state.layer_boost_gamma,
+                                                                        neg_pos_colors=((1, 0, 0), (0, 1, 0)))
+                else:
+                    layer_dat_3D_normalized = tile_images_normalize(layer_dat_3D,
+                                                                    boost_indiv=self.state.layer_boost_indiv,
+                                                                    boost_gamma=self.state.layer_boost_gamma)
+                # print ' ===layer_dat_3D_normalized.shape', layer_dat_3D_normalized.shape, 'layer_dat_3D_normalized dtype', layer_dat_3D_normalized.dtype, 'range', layer_dat_3D_normalized.min(), layer_dat_3D_normalized.max()
+
+                display_3D = layer_dat_3D_normalized
+
+            # Convert to float if necessary:
+            display_3D = ensure_float01(display_3D)
+
+            # Upsample gray -> color if necessary
+            #   e.g. (1000,32,32) -> (1000,32,32,3)
+            if len(display_3D.shape) == 3:
+                display_3D = display_3D[:, :, :, np.newaxis]
+
+            if display_3D.shape[3] == 1:
+                display_3D = np.tile(display_3D, (1, 1, 1, 3))
+            # Upsample unit length tiles to give a more sane tile / highlight ratio
+            #   e.g. (1000,1,1,3) -> (1000,3,3,3)
+            if display_3D.shape[1] == 1:
+                display_3D = np.tile(display_3D, (1, 3, 3, 1))
+
+            highlights = [None] * n_tiles
+            with self.state.lock:
+                if self.state.cursor_area == 'bottom':
+                    highlights[self.state.selected_unit] = self.settings.kerasvis_layer_clr_cursor  # in [0,1] range
+                if self.state.backprop_selection_frozen and self.state.layer == self.state.backprop_layer:
+                    highlights[self.state.backprop_unit] = self.settings.kerasvis_layer_clr_back_sel  # in [0,1] range
+
+            _, display_2D = tile_images_make_tiles(display_3D, hw=(tile_rows, tile_cols), padval=padval,
+                                                   highlights=highlights)
+
+            if display_3D_highres is None:
+                display_3D_highres = display_3D
+
+            # Display pane based on layers_pane_zoom_mode
+            state_layers_pane_zoom_mode = self.state.layers_pane_zoom_mode
+            assert state_layers_pane_zoom_mode in (0, 1, 2)
+            if state_layers_pane_zoom_mode == 0:
+                # Mode 0: normal display (activations or patterns)
+                display_2D_resize = ensure_uint255_and_resize_to_fit(display_2D, pane.data.shape)
+            elif state_layers_pane_zoom_mode == 1:
+                # Mode 1: zoomed selection
+                unit_data = display_3D_highres[self.state.selected_unit]
+                display_2D_resize = ensure_uint255_and_resize_to_fit(unit_data, pane.data.shape)
+            else:
+                # Mode 2: zoomed backprop pane
+                display_2D_resize = ensure_uint255_and_resize_to_fit(display_2D, pane.data.shape) * 0
 
         pane.data[:] = to_255(self.settings.window_background)
         pane.data[0:display_2D_resize.shape[0], 0:display_2D_resize.shape[1], :] = display_2D_resize
 
-        if self.settings.kerasvis_label_layers and self.state.layer in self.settings.kerasvis_label_layers and self.labels and self.state.cursor_area == 'bottom':
+        if self.settings.kerasvis_label_layers and \
+                self.state.layer in self.settings.kerasvis_label_layers and \
+                self.labels and self.state.cursor_area == 'bottom':
             # Display label annotation atop layers pane (e.g. for fc8/prob)
             defaults = {'face': getattr(cv2, self.settings.kerasvis_label_face),
                         'fsize': self.settings.kerasvis_label_fsize,
@@ -547,7 +567,7 @@ class KerasVisApp(BaseApp):
     def get_back_what_to_disp(self):
         '''Whether to show back diff information or stale or disabled indicator'''
         if (
-                        self.state.cursor_area == 'top' and not self.state.backprop_selection_frozen) or not self.state.back_enabled:
+                self.state.cursor_area == 'top' and not self.state.backprop_selection_frozen) or not self.state.back_enabled:
             return 'disabled'
         elif self.state.back_stale:
             return 'stale'

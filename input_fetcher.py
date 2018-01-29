@@ -106,10 +106,13 @@ class InputSignalFetcher(CodependentThread):
 
     def increment_zoom_level(self, amount=0.05):
         with self.lock:
-            self.signal_zoom_level = min(1.1, max(0.05, self.signal_zoom_level + amount))
-            self._plot()
-            self._increment_and_set_frame(self.latest_static_frame,
-                                          self.latest_static_file_data[self.signal_idx:self.signal_idx + 1])
+            curr = self.signal_zoom_level
+            self.signal_zoom_level = min(1.1, max(0.01, self.signal_zoom_level + amount))
+
+            if curr != self.signal_zoom_level:
+                self._plot()
+                self._increment_and_set_frame(self.latest_static_frame,
+                                              self.latest_static_file_data[self.signal_idx:self.signal_idx + 1])
 
     def increment_signal_idx(self, amount=1):
         with self.lock:
