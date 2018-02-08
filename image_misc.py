@@ -1,14 +1,14 @@
 #! /usr/bin/env python
 
-import timeit
-
 import cv2
+import matplotlib.pyplot as plt
 import numpy as np
 import skimage
 import skimage.io
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 from matplotlib.figure import Figure
 from matplotlib.pyplot import cm
+from numpy.random import rand
 
 from misc import WithTimer
 
@@ -68,15 +68,11 @@ def plt_plot_signal(data, labels, zoom_level=1.0):
     for i in range(data.shape[1]):
         c = next(color)
         label = labels[i] if labels is not None else 'Signal {}'.format(i + 1)
-        if ax is not None:
-            ax = fig.add_subplot(data.shape[1], 1, (i + 1), axisbelow=False, sharex=ax)
-        else:
-            ax = fig.add_subplot(data.shape[1], 1, (i + 1), axisbelow=False)
-
+        ax = fig.add_subplot(data.shape[1], 1, (i + 1), sharex=ax)
         ax.plot(data[s:e, i], linewidth=1, label=label, c=c)
-        # ax.set_adjustable('box-forced')
-        ax.set_xlim(right=e)
-        ax.get_xaxis().set_visible(i == data.shape[1] - 1)
+        # # ax.set_adjustable('box-forced')
+        ax.set_xlim(left=0, right=e)
+        # ax.get_xaxis().set_visible(i == data.shape[1] - 1)
         ax.legend(loc='lower right')
 
     fig.tight_layout()
@@ -90,44 +86,81 @@ def plt_plot_signal(data, labels, zoom_level=1.0):
     im.shape = h, w, 3
     return im
 
+    # fig, ax = plt.subplots(data.shape[1], 1, sharex=True)
+    # fig.tight_layout()
+    # fig.subplots_adjust(hspace=0, wspace=0)
+    # canvas = FigureCanvas(fig)
+    # s = 0
+    # e = s + int(zoom_level * data.shape[0])
+    #
+    #
+    # for i in xrange(data.shape[1]):
+    #     label = labels[i] if labels is not None else 'Signal {}'.format(i + 1)
+    #     ax[i].plot(data[s:e, i], linewidth=1, label=label)
+    #     ax[i].set_xlim(left=0, right=e)
+    #     ax[i].legend(loc='lower right')
+    #
+    # canvas.draw()  # draw the canvas, cache the renderer
+    #
+    # l, b, w, h = fig.bbox.bounds
+    # w, h = int(w), int(h)
+    # im = np.fromstring(canvas.tostring_rgb(), dtype='uint8')
+    # im.shape = h, w, 3
+    # return im
+
 
 def plt_plot_filters(data, shape, rows, cols):
-    start_time = timeit.default_timer()
     shape = (np.math.ceil(shape[1] / 80), np.math.ceil(shape[0] / 80))
-    print(shape)
+
+    # fig = Figure(figsize=shape)
+    # canvas = FigureCanvas(fig)
+    # ax = fig.add_subplot(111, axisbelow=False)
+    # plt.setp(ax, 'frame_on', False)
+    #
+    # x_offset = 5  # tune these
+    # y_offset = 5  # tune these
+    # plt.setp(ax, 'frame_on', False)
+    # ax.set_ylim([0, (rows + 1) * y_offset])
+    # ax.set_xlim([0, (cols + 1) * x_offset])
+    #
+    # ax.set_xticks([])
+    # ax.set_yticks([])
+    # ax.grid('off')
+    #
+    # for k in np.arange(0, rows):
+    #     for l in np.arange(0, cols):
+    #         i = (k * cols) + l
+    #         y = data[i] + k * y_offset
+    #         x = np.arange(len(y)) + l * x_offset
+    #         # ax.plot(np.arange(len(data[i])) + l * x_offset, data[i] + k * y_offset, 'r-o', ms=1, mew=0, mfc='b')
+    #         # ax.plot(np.arange(5) + l * x_offset, 5 + rand(5) + k * y_offset, 'r-o', ms=1, mew=0, mfc='r')
+    #         # ax.plot(np.arange(5) + l * x_offset, 5 + rand(5) + k * y_offset, 'r-o', ms=1, mew=0, mfc='b')
+    #         ax.plot(x, y, 'b-o', ms=1, mew=0, mfc='b')
+    #
+    #         # ax.annotate('K={},L={}'.format(k, l), (2.5 + (k) * x_offset, l * y_offset), size=3, ha='center')
+
     fig = Figure(figsize=shape)
     canvas = FigureCanvas(fig)
     ax = None
-    elapsed = timeit.default_timer() - start_time
-    print('plt_plot_filters-setup function ran for {}'.format(elapsed))
 
-    start_time = timeit.default_timer()
     for i in xrange(data.shape[0]):
         ax = fig.add_subplot(rows, cols, (i + 1), axisbelow=False, sharex=ax, sharey=ax)
         ax.plot(data[i], linewidth=1)
-        ax.set_xlim(right=data.shape[1] - 1)
-        ax.get_xaxis().set_visible(False)
-        ax.get_yaxis().set_visible(False)
-        # ax.get_xaxis().set_visible(i >= ((rows - 1) * cols))
-        # ax.get_yaxis().set_visible(i % cols == 0)
+        ax.set_xlim(left=0, right=data.shape[1] - 1)
+        # ax.get_xaxis().set_visible(False)
+        # ax.get_yaxis().set_visible(False)
+        ax.get_xaxis().set_visible(i >= ((rows - 1) * cols))
+        ax.get_yaxis().set_visible(i % cols == 0)
 
-    elapsed = timeit.default_timer() - start_time
-    print('plt_plot_filters-plot function ran for {}'.format(elapsed))
 
-    start_time = timeit.default_timer()
     fig.tight_layout()
     fig.subplots_adjust(hspace=0, wspace=0)
     canvas.draw()  # draw the canvas, cache the renderer
-    elapsed = timeit.default_timer() - start_time
-    print('plt_plot_filters-postplot function ran for {}'.format(elapsed))
 
-    start_time = timeit.default_timer()
     l, b, w, h = fig.bbox.bounds
     w, h = int(w), int(h)
     im = np.fromstring(canvas.tostring_rgb(), dtype='uint8')
     im.shape = h, w, 3
-    elapsed = timeit.default_timer() - start_time
-    print('plt_plot_filters-reshape function ran for {}'.format(elapsed))
     return im
 
 

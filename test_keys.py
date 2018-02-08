@@ -62,6 +62,7 @@ def main():
     print 'Click on the picture and then carefully push the following keys:'
     cv2.imshow('img', img)
     check_key('j')
+    check_key('shift')
     check_key('k')
     check_key('J')
     check_key('K')

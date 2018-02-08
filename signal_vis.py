@@ -140,6 +140,7 @@ class SignalVis(object):
         latest_frame_data = None
         latest_label = None
         latest_signal = None
+        latest_signal_idx = None
         frame_for_apps = None
         redraw_needed = True  # Force redraw the first time
         imshow_needed = True
@@ -197,14 +198,19 @@ class SignalVis(object):
                 redraw_needed |= app.redraw_needed()
 
             # Grab latest frame from input_updater thread
-            fr_idx, fr_data, fr_signal, fr_label = self.input_updater.get_frame()
-            is_new_frame = (fr_idx != latest_frame_idx and fr_data is not None and fr_signal is not None)
+            fr_idx, fr_data, fr_sig_ix, fr_signal, fr_label = self.input_updater.get_frame()
+            is_new_frame = (fr_idx != latest_frame_idx and fr_data is not None)
+            is_new_signal = (fr_sig_ix != latest_signal_idx and fr_signal is not None)
             if is_new_frame:
                 latest_frame_idx = fr_idx
                 latest_frame_data = fr_data
-                frame_for_apps = fr_data
+                latest_label = fr_label
+
+            if is_new_signal:
+                latest_signal_idx = fr_sig_ix
                 latest_signal = fr_signal
                 latest_label = fr_label
+                frame_for_apps = fr_data
 
             if is_new_frame:
                 with WithTimer('LiveVis.display_frame', quiet=self.debug_level < 1):
@@ -305,12 +311,20 @@ class SignalVis(object):
                     self.input_updater.increment_signal_idx(-1)
                 elif tag == 'zoom_in':
                     self.input_updater.increment_zoom_level(-0.025)
+                elif tag == 'zoom_in_fast':
+                    self.input_updater.increment_zoom_level(-0.1)
                 elif tag == 'zoom_out':
                     self.input_updater.increment_zoom_level(0.025)
+                elif tag == 'zoom_out_fast':
+                    self.input_updater.increment_zoom_level(0.1)
                 elif tag == 'move_left':
-                    pass
+                    self.input_updater.move_signal(-100)
+                elif tag == 'move_left_fast':
+                    self.input_updater.move_signal(-400)
                 elif tag == 'move_right':
-                    pass
+                    self.input_updater.move_signal(100)
+                elif tag == 'move_right_fast':
+                    self.input_updater.move_signal(400)
                 elif tag == 'custom_filter':
                     self.input_updater.toggle_filter()
                 else:

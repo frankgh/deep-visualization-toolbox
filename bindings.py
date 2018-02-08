@@ -46,8 +46,8 @@ class Bindings(object):
     def add_multikey(self, tag, key_labels, help_text):
         for key_label in key_labels:
             assert key_label not in self._key_label_to_tag, (
-                'Key "%s" cannot be bound to "%s" because it is already bound to "%s"' %
-                (key_label, tag, self._key_label_to_tag[key_label])
+                    'Key "%s" cannot be bound to "%s" because it is already bound to "%s"' %
+                    (key_label, tag, self._key_label_to_tag[key_label])
             )
             self._key_label_to_tag[key_label] = tag
         self._tag_to_key_labels[tag] = key_labels
@@ -66,10 +66,14 @@ _.add('signal_increment', '7', 'Load next signal from loaded static file')
 _.add('signal_decrement', '6', 'Load previous signal from loaded static file')
 _.add('help_mode', 'h', 'Toggle this help screen')
 _.add('custom_filter', 'g', 'Apply custom filter (signal_filter_fn defined in settings_local)')
-_.add_multikey('zoom_in', ['+', '='], 'Zoom into signal')
-_.add_multikey('zoom_out', ['-', '_'], 'Zoom out signal')
-_.add_multikey('move_right', ['}', ']'], 'Move signal right')
-_.add_multikey('move_left', ['{', '['], 'Move signal left')
+_.add('zoom_in_fast', '+', '')
+_.add('zoom_out_fast', '_', '')
+_.add('move_right_fast', '}', '')
+_.add('move_left_fast', '{', '')
+_.add('zoom_in', '=', 'Zoom into signal (+ or =)')
+_.add('zoom_out', '-', 'Zoom out signal (- or _)')
+_.add('move_right', ']', 'Move signal right ( ] or } )')
+_.add('move_left', '[', 'Move signal left ( [ or { )')
 _.add('stretch_mode', '0', 'Toggle between cropping and stretching static files to be square')
 _.add('debug_level', '5', 'Cycle debug level between 0 (quiet), 1 (some timing info) and 2 (all timing info)')
 _.add('quit', 'q', 'Quit')

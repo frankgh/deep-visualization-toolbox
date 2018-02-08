@@ -20,6 +20,7 @@ class InputSignalFetcher(CodependentThread):
         self.quit = False
         self.debug_level = 0
         self.latest_frame_idx = -1
+        self.latest_signal_idx = -1
         self.latest_frame_data = None
         self.latest_signal = None
 
@@ -30,6 +31,7 @@ class InputSignalFetcher(CodependentThread):
 
         self.signal_apply_filter = False
         self.signal_zoom_level = 1.0
+        self.signal_offset = 0
 
         # Static file input
         self.latest_static_filename = None
@@ -91,7 +93,8 @@ class InputSignalFetcher(CodependentThread):
         is not valid.
         '''
         with self.lock:
-            return (self.latest_frame_idx, self.latest_frame_data, self.latest_signal, self.latest_label)
+            return (self.latest_frame_idx, self.latest_frame_data, self.latest_signal_idx, self.latest_signal,
+                    self.latest_label)
 
     def increment_static_file_idx(self, amount=1):
         with self.lock:
@@ -107,34 +110,42 @@ class InputSignalFetcher(CodependentThread):
     def increment_zoom_level(self, amount=0.05):
         with self.lock:
             curr = self.signal_zoom_level
-            self.signal_zoom_level = min(1.1, max(0.01, self.signal_zoom_level + amount))
+            self.signal_zoom_level = min(1.0, max(0.01, self.signal_zoom_level + amount))
 
             if curr != self.signal_zoom_level:
                 self._plot()
-                self._increment_and_set_frame(self.latest_static_frame,
-                                              self.latest_static_file_data[self.signal_idx:self.signal_idx + 1])
+                self._increment_and_set_frame(self.latest_static_frame, None)
+
+    def move_signal(self, amount=100):
+        with self.lock:
+            new_value = max(0, self.signal_offset + amount)
+
+            if self._plot():
+                self.signal_offset = new_value
+                self._plot()
+                self._increment_and_set_frame(self.latest_static_frame, None)
 
     def increment_signal_idx(self, amount=1):
         with self.lock:
             self.signal_idx_increment += amount
 
     def _increment_and_set_frame(self, frame, signal):
-        assert frame is not None
-        assert signal is not None
-
         with self.lock:
-            self.latest_frame_idx += 1
-            self.latest_frame_data = frame
-            self.latest_signal = signal
+            if frame is not None:
+                self.latest_frame_idx += 1
+                self.latest_frame_data = frame
+            if signal is not None:
+                self.latest_signal_idx += 1
+                self.latest_signal = signal
 
     def check_increment_and_load_image(self):
         with self.lock:
 
             if (self.static_file_idx_increment == 0
-                and self.static_file_idx is not None
-                and self.signal_idx_increment == 0
-                and self.signal_idx is not None
-                and self.latest_static_frame is not None):
+                    and self.static_file_idx is not None
+                    and self.signal_idx_increment == 0
+                    and self.signal_idx is not None
+                    and self.latest_static_frame is not None):
                 return  # Skip if a static frame is already loaded and there is no increment
 
             match_flags = re.IGNORECASE if self.settings.static_files_ignore_case else 0
