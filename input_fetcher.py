@@ -103,9 +103,9 @@ class InputSignalFetcher(CodependentThread):
     def toggle_filter(self):
         with self.lock:
             self.signal_apply_filter = not self.signal_apply_filter
-            self._plot()
-            self._increment_and_set_frame(self.latest_static_frame,
-                                          self.latest_static_file_data[self.signal_idx:self.signal_idx + 1])
+            print ('toggle_filter', self.signal_apply_filter )
+            sig = self._plot()
+            self._increment_and_set_frame(self.latest_static_frame, sig)
 
     def increment_zoom_level(self, amount=0.05):
         with self.lock:
@@ -200,11 +200,12 @@ class InputSignalFetcher(CodependentThread):
                                           self.latest_static_file_data[self.signal_idx:self.signal_idx + 1])
 
     def _plot(self):
+        markers = None
         start_time = timeit.default_timer()
         sig = self.latest_static_file_data[self.signal_idx]
         if self.signal_apply_filter and hasattr(self.settings, 'signal_filter_fn'):
-            sig = self.settings.signal_filter_fn(sig)
-        im = plt_plot_signal(sig, self.signal_labels, self.signal_zoom_level)
+            sig, markers = self.settings.signal_filter_fn(sig)
+        im = plt_plot_signal(sig, self.signal_labels, zoom_level=self.signal_zoom_level, markers=markers)
         elapsed = timeit.default_timer() - start_time
         print('plt_plot_signal function ran for', elapsed)
 
@@ -212,3 +213,4 @@ class InputSignalFetcher(CodependentThread):
             im = crop_to_square(im)
         self.latest_static_frame = im
         self.latest_label = self.latest_static_file_labels[self.signal_idx]
+        return sig

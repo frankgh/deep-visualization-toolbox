@@ -100,7 +100,7 @@ static_files_regexp = locals().get('static_files_regexp', '.*\.(npz|npy)$')
 static_files_ignore_case = locals().get('static_files_ignore_case', True)
 # True to stretch to square, False to crop to square. (Can change at
 # runtime via 'stretch_mode' key.)
-static_file_stretch_mode = locals().get('static_file_stretch_mode', False)
+static_file_stretch_mode = locals().get('static_file_stretch_mode', True)
 
 # int, 0+. How many times to go through the main loop after a keypress
 # before resuming handling frames (0 to handle every frame as it

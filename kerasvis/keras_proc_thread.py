@@ -1,6 +1,7 @@
 import time
 import timeit
 
+from numpy import expand_dims
 from keras import backend as K
 
 from codependent_thread import CodependentThread
@@ -75,9 +76,12 @@ class KerasProcThread(CodependentThread):
                 with WithTimer('KerasProcThread:forward', quiet=self.debug_level < 1):
                     with self.graph.as_default():
                         start_time = timeit.default_timer()
+
+                        if len(frame.shape) == 2:
+                            frame = expand_dims(frame, axis=0)
+
                         outputs = [layer.output for layer in self.net.layers]  # all layer outputs
-                        functor = K.function([self.net.input, K.learning_phase()],
-                                             outputs)  # evaluation function
+                        functor = K.function([self.net.input, K.learning_phase()], outputs)  # evaluation function
                         layer_outs = functor([frame, 0.])
                         self.net.intermediate_predictions = layer_outs
                         elapsed = timeit.default_timer() - start_time

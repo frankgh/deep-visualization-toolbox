@@ -56,7 +56,7 @@ def cv2_read_cap_rgb(cap, saveto=None):
     return frame
 
 
-def plt_plot_signal(data, labels, zoom_level=1.0):
+def plt_plot_signal(data, labels, zoom_level=1.0, markers=None):
     fig = Figure()
     canvas = FigureCanvas(fig)
     ax = None
@@ -74,6 +74,10 @@ def plt_plot_signal(data, labels, zoom_level=1.0):
         ax.set_xlim(left=0, right=e)
         # ax.get_xaxis().set_visible(i == data.shape[1] - 1)
         ax.legend(loc='lower right')
+
+        if markers is not None and i in markers:
+            for val in markers[i]:
+                ax.axvline(x=val)
 
     fig.tight_layout()
     fig.subplots_adjust(hspace=0)
