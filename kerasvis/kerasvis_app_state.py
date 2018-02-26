@@ -169,7 +169,7 @@ class KerasVisAppState(object):
                     self.layers_pane_zoom_mode = 0
 
             elif tag == 'filter_mode':
-                self.layers_pane_filter_mode = (self.layers_pane_filter_mode + 1) % 3
+                self.layers_pane_filter_mode = (self.layers_pane_filter_mode + 1) % 4
             elif tag == 'toggle_label_predictions':
                 self.show_label_predictions = not self.show_label_predictions
 

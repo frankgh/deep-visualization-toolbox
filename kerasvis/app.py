@@ -294,7 +294,7 @@ class KerasVisApp(BaseApp):
         # print '_draw_layer_pane'
 
         state_layers_pane_filter_mode = self.state.layers_pane_filter_mode
-        assert state_layers_pane_filter_mode in (0, 1, 2)
+        assert state_layers_pane_filter_mode in (0, 1, 2, 3)
 
         layer_dat_3D = out[0].T
         n_tiles = layer_dat_3D.shape[0]
@@ -313,6 +313,9 @@ class KerasVisApp(BaseApp):
             layer_dat_3D = np.average(layer_dat_3D, axis=1)
 
         elif state_layers_pane_filter_mode == 2:
+            layer_dat_3D = np.max(layer_dat_3D, axis=1)
+
+        elif state_layers_pane_filter_mode == 3:
 
             if len(layer_dat_3D.shape) > 1:
                 start_time = timeit.default_timer()
@@ -333,7 +336,8 @@ class KerasVisApp(BaseApp):
         else:
             padval = self.settings.window_background
 
-        if state_layers_pane_filter_mode == 0 or state_layers_pane_filter_mode == 1:
+        if state_layers_pane_filter_mode == 0 or state_layers_pane_filter_mode == 1 or \
+                state_layers_pane_filter_mode == 2:
             display_3D_highres = None
             if self.state.pattern_mode:
                 # Show desired patterns loaded from disk

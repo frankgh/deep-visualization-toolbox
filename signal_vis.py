@@ -372,7 +372,7 @@ class SignalVis(object):
         fs.clr = clr_0
         strings.append([fs])
 
-        if hasattr(self, 'labels'):
+        if hasattr(self, 'labels') and self.labels is not None:
             lbl = self.labels[np.argmax(label)]
         else:
             lbl = np.argmax(label)

@@ -60,6 +60,10 @@ def plt_plot_signal(data, labels, zoom_level=1.0, markers=None):
     fig = Figure()
     canvas = FigureCanvas(fig)
     ax = None
+
+    if len(data.shape) == 1:
+        data = np.expand_dims(data, axis=1)
+
     color = iter(cm.rainbow(np.linspace(0, 1, data.shape[1])))
 
     s = 0
