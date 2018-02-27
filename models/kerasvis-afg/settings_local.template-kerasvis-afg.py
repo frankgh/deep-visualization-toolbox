@@ -4,8 +4,10 @@
 # will override those defined in settings.py
 
 import numpy as np
+from scipy import signal
 
 from wave_detection.spindle import DetectSpindle
+
 
 window_panes = (
     # (i, j, i_size, j_size)
@@ -44,10 +46,9 @@ kerasvis_jpgvis_layers = ['conv1', 'conv3', 'conv5', 'activation_9', 'activation
                           'dense_3']
 kerasvis_jpgvis_remap = {'activation_1': 'conv1', 'activation_3': 'conv3', 'activation_5': 'conv5'}
 
-
 def signal_filter_fn(data):
     detsp = DetectSpindle(method='Wamsley2012', frequency=(11, 16))
-    sp = detsp(data[:, 0:2])
+    sp = detsp(data[:,0:2])
 
     # print ('Events found', len(sp.events))
     if len(sp.events) == 0:
@@ -59,7 +60,7 @@ def signal_filter_fn(data):
         start, end, channels = int(ev['start'] * 100), int(ev['end'] * 100), ev['chan']
         for ch in channels.split(','):
             ch = int(ch)
-            filtered[start:end, ch] = np.zeros(end - start)
+            filtered[start:end, ch] = np.zeros(end-start)
             if ch not in markers:
                 markers[ch] = []
             markers[ch].append(start)
@@ -68,9 +69,6 @@ def signal_filter_fn(data):
 
 
 def static_files_data_fn(data):
-    # x_raw = data['X'][:,6000:9000,0]
-    # x_scaled = (x_raw + 199) / 399
-    # return x_scaled
     return data['X']
 
 

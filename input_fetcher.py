@@ -1,7 +1,8 @@
-import os
 import re
 import time
 import timeit
+from os import listdir, getcwd
+from os.path import join
 from threading import RLock
 
 import numpy as np
@@ -26,12 +27,15 @@ class InputSignalFetcher(CodependentThread):
 
         self.static_file_mode = True
         self.settings = settings
-        self.static_file_stretch_mode = self.settings.static_file_stretch_mode
+        self.static_file_stretch_mode = settings.static_file_stretch_mode
         self.sleep_after_read_frame = settings.input_updater_sleep_after_read_frame
 
         self.signal_apply_filter = False
         self.signal_zoom_level = 1.0
         self.signal_offset = 0
+
+        # Dynamic file input
+        self.dynamic_filename = settings.dynamic_filename if hasattr(settings, 'dynamic_filename') else None
 
         # Static file input
         self.latest_static_filename = None
@@ -45,9 +49,26 @@ class InputSignalFetcher(CodependentThread):
         self.signal_idx_increment = 0
         self.signal_labels = settings.signal_labels if hasattr(settings, 'signal_labels') else None
 
+    def toggle_input_mode(self):
+        with self.lock:
+            if self.static_file_mode:
+                self.set_mode_dynamic()
+            else:
+                self.set_mode_static()
+
     def set_debug(self, debug_level):
         with self.lock:
             self.debug_level = debug_level
+
+    def set_mode_dynamic(self):
+        print 'WARNING: ignoring set_mode_dynamic, action not specified'
+        # with self.lock:
+        #     if self.dynamic_filename is None:
+        #         print 'WARNING: ignoring set_mode_dynamic, no dynamic_filename specified in settings file'
+        #     elif not isfile(self.dynamic_filename):
+        #         print 'WARNING: ignoring set_mode_dynamic, file does not exist'
+        #     else:
+        #         self.static_file_mode = False
 
     def set_mode_static(self):
         with self.lock:
@@ -103,7 +124,7 @@ class InputSignalFetcher(CodependentThread):
     def toggle_filter(self):
         with self.lock:
             self.signal_apply_filter = not self.signal_apply_filter
-            print ('toggle_filter', self.signal_apply_filter )
+            print ('toggle_filter', self.signal_apply_filter)
             sig = self._plot()
             self._increment_and_set_frame(self.latest_static_frame, sig)
 
@@ -149,12 +170,12 @@ class InputSignalFetcher(CodependentThread):
                 return  # Skip if a static frame is already loaded and there is no increment
 
             match_flags = re.IGNORECASE if self.settings.static_files_ignore_case else 0
-            available_files = [filename for filename in os.listdir(self.settings.static_files_dir) if
+            available_files = [filename for filename in listdir(self.settings.static_files_dir) if
                                re.match(self.settings.static_files_regexp, filename, match_flags)]
 
             assert len(
                 available_files) != 0, 'Error: No files found in {} matching {} (current working directory is {})'.format(
-                self.settings.static_files_dir, self.settings.static_files_regexp, os.getcwd())
+                self.settings.static_files_dir, self.settings.static_files_regexp, getcwd())
 
             if self.debug_level == 3:
                 print 'Found files:'
@@ -176,8 +197,7 @@ class InputSignalFetcher(CodependentThread):
             if self.latest_static_file_data is None or self.latest_static_filename != available_files[
                 self.static_file_idx]:
                 self.latest_static_filename = available_files[self.static_file_idx]
-                self.latest_static_file = np.load(
-                    os.path.join(self.settings.static_files_dir, self.latest_static_filename))
+                self.latest_static_file = np.load(join(self.settings.static_files_dir, self.latest_static_filename))
                 self.latest_static_file_labels = self.settings.static_files_labels_fn(self.latest_static_file)
                 self.latest_static_file_data = self.settings.static_files_data_fn(self.latest_static_file)
 
