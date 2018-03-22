@@ -8,7 +8,6 @@ import skimage.io
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 from matplotlib.figure import Figure
 from matplotlib.pyplot import cm
-from numpy.random import rand
 
 from misc import WithTimer
 
@@ -56,7 +55,7 @@ def cv2_read_cap_rgb(cap, saveto=None):
     return frame
 
 
-def plt_plot_signal(data, labels, zoom_level=1.0, markers=None):
+def plt_plot_signal(data, labels, zoom_level=-1, offset=0, markers=None, title=None):
     fig = Figure()
     canvas = FigureCanvas(fig)
     ax = None
@@ -64,25 +63,35 @@ def plt_plot_signal(data, labels, zoom_level=1.0, markers=None):
     if len(data.shape) == 1:
         data = np.expand_dims(data, axis=1)
 
+    if zoom_level == -1:
+        zoom_level = data.shape[0]
+
     color = iter(cm.rainbow(np.linspace(0, 1, data.shape[1])))
 
-    s = 0
-    e = s + int(zoom_level * data.shape[0])
+    s = offset
+    e = s + zoom_level
+    y = np.arange(s, e)
 
     for i in range(data.shape[1]):
         c = next(color)
         label = labels[i] if labels is not None else 'Signal {}'.format(i + 1)
         ax = fig.add_subplot(data.shape[1], 1, (i + 1), sharex=ax)
-        ax.plot(data[s:e, i], linewidth=1, label=label, c=c)
+        ax.plot(y, data[s:e, i], linewidth=1, label=label, c=c)
         # # ax.set_adjustable('box-forced')
-        ax.set_xlim(left=0, right=e)
+        # ax.set_xlim(left=0, right=zoom_level)
         # ax.get_xaxis().set_visible(i == data.shape[1] - 1)
+
+        # ax.xaxis.set_ticks(np.arange(s, e + 1, (e - s) / 10.0))
+        # ax.xaxis.set_major_formatter(ticker.FormatStrFormatter('%0.1f'))
+
         ax.legend(loc='lower right')
 
         if markers is not None and i in markers:
             for val in markers[i]:
                 ax.axvline(x=val)
 
+    if title is not None:
+        fig.suptitle(title)
     fig.tight_layout()
     fig.subplots_adjust(hspace=0)
     canvas.draw()  # draw the canvas, cache the renderer
@@ -117,50 +126,199 @@ def plt_plot_signal(data, labels, zoom_level=1.0, markers=None):
     # return im
 
 
-def plt_plot_filters(data, shape, rows, cols):
+def plt_plot_filters_blit(y, x, shape, rows, cols,
+                          title=None,
+                          x_axis_label=None,
+                          y_axis_label=None,
+                          log_scale=0):
+    res = []
+    x = np.arange(0, y.shape[1]) if x is None else x
+    shape = (np.math.ceil(shape[1] / 80 / cols), np.math.ceil(shape[0] / 80 / rows))
+    fig, ax = plt.subplots(1, 1, figsize=shape)
+    canvas = FigureCanvas(fig)
+    ax.set_xlim(min(x), max(x))
+    ax.set_ylim(y.min(), y.max())
+
+    if x_axis_label is not None:
+        ax.set_xlabel(x_axis_label)
+
+    if y_axis_label is not None:
+        ax.set_ylabel(y_axis_label)
+
+    if title is not None:
+        plt.title(title)
+
+    if log_scale == 1:
+        line, = ax.semilogy([], [], lw=1)
+    else:
+        line, = ax.plot([], [], lw=1)
+
+    fig.tight_layout()
+    # fig.subplots_adjust(left=0.195, bottom=0.125, right=0.98, top=0.98, hspace=0, wspace=0)
+    canvas.draw()  # draw the canvas, cache the renderer
+
+    background = fig.canvas.copy_from_bbox(ax.bbox)
+
+    for i in xrange(y.shape[0]):
+        line.set_data(x, y[i])
+
+        # restore background
+        fig.canvas.restore_region(background)
+
+        # redraw just the points
+        ax.draw_artist(line)
+
+        # fill in the axes rectangle
+        fig.canvas.blit(ax.bbox)
+
+        l, b, w, h = fig.bbox.bounds
+        w, h = int(w), int(h)
+        im = np.fromstring(canvas.tostring_rgb(), dtype='uint8')
+        im.shape = h, w, 3
+        res.append(im)
+        # ax.cla()
+
+    fig.clf()
+    plt.clf()
+    plt.close()
+    return np.array(res)
+
+
+def plt_plot_filters_fast(y, x, shape, rows, cols,
+                          title=None,
+                          x_axis_label=None,
+                          y_axis_label=None,
+                          share_axes=True,
+                          log_scale=0):
+    res = []
+    shape = (np.math.ceil(shape[1] / 80 / cols), np.math.ceil(shape[0] / 80 / rows))
+    fig, ax = plt.subplots(1, 1, figsize=shape)
+    canvas = FigureCanvas(fig)
+    # ax.set_aspect('equal')
+
+    if share_axes:
+        if x is not None:
+            min_x, max_x = min(x), max(x)
+        else:
+            min_x, max_x = 0, y.shape[1]
+        min_y, max_y = y.min(), y.max()
+        ax.set_xlim(min_x, max_x)
+        ax.set_ylim(min_y, max_y)
+
+    # ax.hold(True)
+    plt.subplots_adjust(left=0.185, bottom=0.125, right=0.98, top=0.98)
+    # plt.show(False)
+    # plt.draw()
+
+    # background = fig.canvas.copy_from_bbox(ax.bbox)
+    # points = ax.plot(x[0], linewidth=1)[0]
+
+    for i in xrange(y.shape[0]):
+        if x is not None:
+            if log_scale == 1:
+                ax.semilogy(x, y[i], linewidth=1)
+            else:
+                ax.plot(x, y[i], linewidth=1)
+        else:
+            if log_scale == 1:
+                ax.semilogy(y[i], linewidth=1)
+            else:
+                ax.plot(y[i], linewidth=1)
+
+        if x_axis_label is not None:
+            ax.set_xlabel(x_axis_label)
+
+        if y_axis_label is not None:
+            ax.set_ylabel(y_axis_label)
+
+        if title is not None:
+            plt.title(title)
+
+        # plt.autoscale(enable=True, axis='y', tight=True)
+        # plt.tight_layout()
+
+        # Turn off axes and set axes limits
+        # ax.axis('off')
+
+        canvas.draw()  # draw the canvas, cache the renderer
+
+        l, b, w, h = fig.bbox.bounds
+        w, h = int(w), int(h)
+        im = np.fromstring(canvas.tostring_rgb(), dtype='uint8')
+        im.shape = h, w, 3
+        res.append(im)
+        # ax.cla()
+
+    fig.clf()
+    return np.array(res)
+
+
+def plt_plot_filters(x, y, shape, rows, cols,
+                     selected_unit=None,
+                     selected_unit_color=None,
+                     title=None,
+                     x_axis_label=None,
+                     y_axis_label=None,
+                     share_axes=True,
+                     log_scale=0):
     shape = (np.math.ceil(shape[1] / 80), np.math.ceil(shape[0] / 80))
-
-    # fig = Figure(figsize=shape)
-    # canvas = FigureCanvas(fig)
-    # ax = fig.add_subplot(111, axisbelow=False)
-    # plt.setp(ax, 'frame_on', False)
-    #
-    # x_offset = 5  # tune these
-    # y_offset = 5  # tune these
-    # plt.setp(ax, 'frame_on', False)
-    # ax.set_ylim([0, (rows + 1) * y_offset])
-    # ax.set_xlim([0, (cols + 1) * x_offset])
-    #
-    # ax.set_xticks([])
-    # ax.set_yticks([])
-    # ax.grid('off')
-    #
-    # for k in np.arange(0, rows):
-    #     for l in np.arange(0, cols):
-    #         i = (k * cols) + l
-    #         y = data[i] + k * y_offset
-    #         x = np.arange(len(y)) + l * x_offset
-    #         # ax.plot(np.arange(len(data[i])) + l * x_offset, data[i] + k * y_offset, 'r-o', ms=1, mew=0, mfc='b')
-    #         # ax.plot(np.arange(5) + l * x_offset, 5 + rand(5) + k * y_offset, 'r-o', ms=1, mew=0, mfc='r')
-    #         # ax.plot(np.arange(5) + l * x_offset, 5 + rand(5) + k * y_offset, 'r-o', ms=1, mew=0, mfc='b')
-    #         ax.plot(x, y, 'b-o', ms=1, mew=0, mfc='b')
-    #
-    #         # ax.annotate('K={},L={}'.format(k, l), (2.5 + (k) * x_offset, l * y_offset), size=3, ha='center')
-
     fig = Figure(figsize=shape)
     canvas = FigureCanvas(fig)
-    ax = None
+    ax, highlighted_ax, right_ax, bottom_ax, curr, right, bottom = None, None, None, None, None, None, None
 
-    for i in xrange(data.shape[0]):
-        ax = fig.add_subplot(rows, cols, (i + 1), axisbelow=False, sharex=ax, sharey=ax)
-        ax.plot(data[i], linewidth=1)
-        ax.set_xlim(left=0, right=data.shape[1] - 1)
-        # ax.get_xaxis().set_visible(False)
-        # ax.get_yaxis().set_visible(False)
+    if selected_unit is not None:
+        row = selected_unit / cols
+        col = selected_unit % cols
+        curr = selected_unit
+        bottom = (selected_unit + cols) if row < rows - 1 else None
+        right = (selected_unit + 1) if col < cols - 1 else None
+
+    for i in xrange(x.shape[0]):
+        if share_axes:
+            ax = fig.add_subplot(rows, cols, (i + 1), axisbelow=False, sharex=ax, sharey=ax)
+        else:
+            ax = fig.add_subplot(rows, cols, (i + 1), axisbelow=False)
+
+        if y is not None:
+            if log_scale == 1:
+                ax.semilogy(y, x[i], linewidth=1)
+            else:
+                ax.plot(y, x[i], linewidth=1)
+        else:
+            if log_scale == 1:
+                ax.semilogy(x[i], linewidth=1)
+            else:
+                ax.plot(x[i], linewidth=1)
+            ax.set_xlim(left=0, right=x.shape[1] - 1)
+
         ax.get_xaxis().set_visible(i >= ((rows - 1) * cols))
         ax.get_yaxis().set_visible(i % cols == 0)
+        if i == curr:
+            highlighted_ax = ax
+        if i == bottom:
+            bottom_ax = ax
+        if i == right:
+            right_ax = ax
+        if x_axis_label is not None:
+            ax.set_xlabel(x_axis_label)
+        if y_axis_label is not None:
+            ax.set_ylabel(y_axis_label)
 
+    if highlighted_ax is not None:
+        for axis in ['top', 'bottom', 'left', 'right']:
+            highlighted_ax.spines[axis].set_linewidth(2.5)
+            highlighted_ax.spines[axis].set_color(selected_unit_color)
 
+        if bottom_ax is not None:
+            bottom_ax.spines['top'].set_linewidth(2)
+            bottom_ax.spines['top'].set_color(selected_unit_color)
+
+        if right_ax is not None:
+            right_ax.spines['left'].set_linewidth(2)
+            right_ax.spines['left'].set_color(selected_unit_color)
+
+    if title is not None:
+        fig.suptitle(title)
     fig.tight_layout()
     fig.subplots_adjust(hspace=0, wspace=0)
     canvas.draw()  # draw the canvas, cache the renderer
@@ -170,6 +328,70 @@ def plt_plot_filters(data, shape, rows, cols):
     im = np.fromstring(canvas.tostring_rgb(), dtype='uint8')
     im.shape = h, w, 3
     return im
+
+
+# def plt_plot_filters(data, shape, rows, cols,
+#                      selected_unit=None,
+#                      selected_unit_color=None,
+#                      title=None,
+#                      x_axis_label=None,
+#                      y_axis_label=None):
+#     shape = (np.math.ceil(shape[1] / 80), np.math.ceil(shape[0] / 80))
+#     fig = Figure(figsize=shape)
+#     canvas = FigureCanvas(fig)
+#
+#     highlighted_ax, right_ax, bottom_ax = None, None, None
+#     curr, right, bottom = None, None, None
+#
+#     if selected_unit is not None:
+#         row = selected_unit / cols
+#         col = selected_unit % cols
+#         curr = selected_unit
+#         bottom = (selected_unit + cols) if row < rows - 1 else None
+#         right = (selected_unit + 1) if col < cols - 1 else None
+#
+#     for i in xrange(data.shape[0]):
+#
+#         ax.plot(data[i], linewidth=1)
+#         ax.set_xlim(left=0, right=data.shape[1] - 1)
+#         ax.get_xaxis().set_visible(i >= ((rows - 1) * cols))
+#         ax.get_yaxis().set_visible(i % cols == 0)
+#         if i == curr:
+#             highlighted_ax = ax
+#         if i == bottom:
+#             bottom_ax = ax
+#         if i == right:
+#             right_ax = ax
+#         if x_axis_label is not None:
+#             ax.set_xlabel(x_axis_label)
+#         if y_axis_label is not None:
+#             ax.set_ylabel(y_axis_label)
+#
+#     if highlighted_ax is not None:
+#         for axis in ['top', 'bottom', 'left', 'right']:
+#             highlighted_ax.spines[axis].set_linewidth(2.5)
+#             highlighted_ax.spines[axis].set_color(selected_unit_color)
+#
+#         if bottom_ax is not None:
+#             bottom_ax.spines['top'].set_linewidth(2)
+#             bottom_ax.spines['top'].set_color(selected_unit_color)
+#
+#         if right_ax is not None:
+#             right_ax.spines['left'].set_linewidth(2)
+#             right_ax.spines['left'].set_color(selected_unit_color)
+#
+#     if title is not None:
+#         fig.suptitle(title)
+#
+#     fig.tight_layout()
+#     fig.subplots_adjust(hspace=0, wspace=0)
+#     canvas.draw()  # draw the canvas, cache the renderer
+#
+#     l, b, w, h = fig.bbox.bounds
+#     w, h = int(w), int(h)
+#     im = np.fromstring(canvas.tostring_rgb(), dtype='uint8')
+#     im.shape = h, w, 3
+#     return im
 
 
 def cv2_read_file_rgb(filename):

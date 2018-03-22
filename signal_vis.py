@@ -198,7 +198,7 @@ class SignalVis(object):
                 redraw_needed |= app.redraw_needed()
 
             # Grab latest frame from input_updater thread
-            fr_idx, fr_data, fr_sig_ix, fr_signal, fr_label = self.input_updater.get_frame()
+            fr_idx, fr_data, fr_sig_ix, fr_signal, fr_label, fr_extra = self.input_updater.get_frame()
             is_new_frame = (fr_idx != latest_frame_idx and fr_data is not None)
             is_new_signal = (fr_sig_ix != latest_signal_idx and fr_signal is not None)
             if is_new_frame:
@@ -225,7 +225,7 @@ class SignalVis(object):
                 # Pass signal to apps for processing
                 for app_name, app in self.apps.iteritems():
                     with WithTimer('%s:handle_input' % app_name, quiet=self.debug_level < 1):
-                        app.handle_input(latest_signal, self.panes)
+                        app.handle_input(latest_signal, fr_extra, self.panes)
                 frame_for_apps = None
 
             # Tell each app to draw
@@ -310,21 +310,21 @@ class SignalVis(object):
                 elif tag == 'signal_decrement':
                     self.input_updater.increment_signal_idx(-1)
                 elif tag == 'zoom_in':
-                    self.input_updater.increment_zoom_level(-0.025)
+                    self.input_updater.increment_zoom_level(-50)
                 elif tag == 'zoom_in_fast':
-                    self.input_updater.increment_zoom_level(-0.1)
+                    self.input_updater.increment_zoom_level(-1000)
                 elif tag == 'zoom_out':
-                    self.input_updater.increment_zoom_level(0.025)
+                    self.input_updater.increment_zoom_level(50)
                 elif tag == 'zoom_out_fast':
-                    self.input_updater.increment_zoom_level(0.1)
+                    self.input_updater.increment_zoom_level(1000)
                 elif tag == 'move_left':
-                    self.input_updater.move_signal(-100)
+                    self.input_updater.move_signal(-50)
                 elif tag == 'move_left_fast':
-                    self.input_updater.move_signal(-400)
+                    self.input_updater.move_signal(-1000)
                 elif tag == 'move_right':
-                    self.input_updater.move_signal(100)
+                    self.input_updater.move_signal(50)
                 elif tag == 'move_right_fast':
-                    self.input_updater.move_signal(400)
+                    self.input_updater.move_signal(1000)
                 elif tag == 'custom_filter':
                     self.input_updater.toggle_filter()
                 else:
@@ -396,8 +396,9 @@ class SignalVis(object):
         lines.append([FormattedString('Base keys', defaults)])
 
         for tag in (
-                'help_mode', 'static_file_increment', 'static_file_decrement', 'signal_increment', 'signal_decrement',
-                'custom_filter', 'zoom_in', 'zoom_out', 'move_left', 'move_right', 'stretch_mode', 'quit'):
+                'help_mode', 'static_file_increment', 'static_file_decrement', 'signal_increment',
+                'signal_decrement', 'custom_filter', 'zoom_in', 'zoom_out', 'move_left', 'move_right', 'stretch_mode',
+                'quit'):
             key_strings, help_string = self.bindings.get_key_help(tag)
             label = '%10s:' % (','.join(key_strings))
             lines.append([FormattedString(label, defaults, width=120, align='right'),

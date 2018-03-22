@@ -24,6 +24,7 @@ class KerasVisAppState(object):
         self.back_stale = True  # back becomes stale whenever the last back diffs were not computed using the current backprop unit and method (bprop or deconv)
         self.next_frame = None
         self.active_signal = None
+        self.extra_info = None
         self.jpgvis_to_load_key = None
         self.last_key_at = 0
         self.quit = False
@@ -48,6 +49,7 @@ class KerasVisAppState(object):
         self.back_filt_mode = 'raw'  # 'raw', 'gray', 'norm', 'normblur'
         self.pattern_mode = False  # Whether or not to show desired patterns instead of activations in layers pane
         self.layers_pane_zoom_mode = 0  # 0: off, 1: zoom selected (and show pref in small pane), 2: zoom backprop
+        self.log_scale = 0 # 0: off, 1: enable log scale for plots
         self.layers_pane_filter_mode = 0  # 0: square, 1: average
         self.layers_show_back = False  # False: show forward activations. True: show backward diffs
         self.show_label_predictions = self.settings.kerasvis_init_show_label_predictions
@@ -162,6 +164,9 @@ class KerasVisAppState(object):
                     # Grap layer/selected_unit upon transition from non-frozen -> frozen
                     self.backprop_layer = self.layer
                     self.backprop_unit = self.selected_unit
+            elif tag == 'log_scale':
+                self.log_scale = (self.log_scale + 1) % 2
+
             elif tag == 'zoom_mode':
                 self.layers_pane_zoom_mode = (self.layers_pane_zoom_mode + 1) % 3
                 if self.layers_pane_zoom_mode == 2 and not self.back_enabled:
@@ -169,7 +174,7 @@ class KerasVisAppState(object):
                     self.layers_pane_zoom_mode = 0
 
             elif tag == 'filter_mode':
-                self.layers_pane_filter_mode = (self.layers_pane_filter_mode + 1) % 4
+                self.layers_pane_filter_mode = (self.layers_pane_filter_mode + 1) % 5
             elif tag == 'toggle_label_predictions':
                 self.show_label_predictions = not self.show_label_predictions
 

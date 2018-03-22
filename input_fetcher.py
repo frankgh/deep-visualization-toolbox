@@ -31,7 +31,7 @@ class InputSignalFetcher(CodependentThread):
         self.sleep_after_read_frame = settings.input_updater_sleep_after_read_frame
 
         self.signal_apply_filter = False
-        self.signal_zoom_level = 1.0
+        self.signal_zoom_level = -1
         self.signal_offset = 0
 
         # Dynamic file input
@@ -40,6 +40,7 @@ class InputSignalFetcher(CodependentThread):
         # Static file input
         self.latest_static_filename = None
         self.latest_static_file_data = None
+        self.latest_static_file_extra = None
         self.latest_static_frame = None
         self.latest_label = None
         self.static_file_idx = None
@@ -114,8 +115,12 @@ class InputSignalFetcher(CodependentThread):
         is not valid.
         '''
         with self.lock:
-            return (self.latest_frame_idx, self.latest_frame_data, self.latest_signal_idx, self.latest_signal,
-                    self.latest_label)
+            return (self.latest_frame_idx,
+                    self.latest_frame_data,
+                    self.latest_signal_idx,
+                    self.latest_signal,
+                    self.latest_label,
+                    self.latest_static_file_extra)
 
     def increment_static_file_idx(self, amount=1):
         with self.lock:
@@ -128,20 +133,38 @@ class InputSignalFetcher(CodependentThread):
             sig = self._plot()
             self._increment_and_set_frame(self.latest_static_frame, sig)
 
-    def increment_zoom_level(self, amount=0.05):
+    def increment_zoom_level(self, amount=100):
         with self.lock:
+
+            if self.signal_zoom_level == -1:
+                self.signal_zoom_level = self.latest_signal.shape[1]
+
             curr = self.signal_zoom_level
-            self.signal_zoom_level = min(1.0, max(0.01, self.signal_zoom_level + amount))
+            self.signal_zoom_level = min(self.latest_signal.shape[1], max(100, self.signal_zoom_level + amount))
 
             if curr != self.signal_zoom_level:
+
+                if self.signal_offset + self.signal_zoom_level > self.latest_signal.shape[1]:
+                    self.signal_offset = self.latest_signal.shape[1] - self.signal_zoom_level
+
                 self._plot()
                 self._increment_and_set_frame(self.latest_static_frame, None)
 
     def move_signal(self, amount=100):
         with self.lock:
-            new_value = max(0, self.signal_offset + amount)
+            new_value = self.signal_offset + amount
 
-            if self._plot():
+            if self.signal_zoom_level == -1:
+                self.signal_zoom_level = self.latest_signal.shape[1]
+
+            if new_value < 0:
+                new_value = 0
+            elif new_value + self.signal_zoom_level > self.latest_signal.shape[1]:
+                new_value = self.latest_signal.shape[1] - self.signal_zoom_level
+
+            print 'signal offset', new_value
+
+            if new_value != self.signal_offset:
                 self.signal_offset = new_value
                 self._plot()
                 self._increment_and_set_frame(self.latest_static_frame, None)
@@ -197,9 +220,14 @@ class InputSignalFetcher(CodependentThread):
             if self.latest_static_file_data is None or self.latest_static_filename != available_files[
                 self.static_file_idx]:
                 self.latest_static_filename = available_files[self.static_file_idx]
+                print 'Loading file', self.latest_static_filename
                 self.latest_static_file = np.load(join(self.settings.static_files_dir, self.latest_static_filename))
-                self.latest_static_file_labels = self.settings.static_files_labels_fn(self.latest_static_file)
                 self.latest_static_file_data = self.settings.static_files_data_fn(self.latest_static_file)
+                self.latest_static_file_labels = self.settings.static_files_labels_fn(self.latest_static_file)
+                if hasattr(self.settings, 'static_files_extra_fn'):
+                    self.latest_static_file_extra = self.settings.static_files_extra_fn(self.latest_static_file)
+                else:
+                    self.latest_static_file_extra = None
 
                 self.signal_idx = 0
                 new_data_file_loaded = True
@@ -207,7 +235,10 @@ class InputSignalFetcher(CodependentThread):
             if self.signal_idx is None:
                 self.signal_idx = 0
 
-            available_signal_count = self.latest_static_file_labels.shape[0]
+            if self.latest_static_file_labels is not None:
+                available_signal_count = self.latest_static_file_labels.shape[0]
+            else:
+                available_signal_count = self.latest_static_file_data.shape[0]
 
             self.signal_idx = (self.signal_idx + self.signal_idx_increment) % available_signal_count
             self.signal_idx_increment = 0
@@ -216,8 +247,10 @@ class InputSignalFetcher(CodependentThread):
                 self.last_signal_idx = self.signal_idx
                 self._plot()
 
-            self._increment_and_set_frame(self.latest_static_frame,
-                                          self.latest_static_file_data[self.signal_idx:self.signal_idx + 1])
+            self._increment_and_set_frame(
+                self.latest_static_frame,
+                self.latest_static_file_data[self.signal_idx:self.signal_idx + 1]
+            )
 
     def _plot(self):
         markers = None
@@ -225,12 +258,19 @@ class InputSignalFetcher(CodependentThread):
         sig = self.latest_static_file_data[self.signal_idx]
         if self.signal_apply_filter and hasattr(self.settings, 'signal_filter_fn'):
             sig, markers = self.settings.signal_filter_fn(sig)
-        im = plt_plot_signal(sig, self.signal_labels, zoom_level=self.signal_zoom_level, markers=markers)
+        im = plt_plot_signal(
+            sig,
+            self.signal_labels,
+            offset=self.signal_offset,
+            zoom_level=self.signal_zoom_level,
+            markers=markers
+        )
         elapsed = timeit.default_timer() - start_time
         print('plt_plot_signal function ran for', elapsed)
 
         if not self.static_file_stretch_mode:
             im = crop_to_square(im)
         self.latest_static_frame = im
-        self.latest_label = self.latest_static_file_labels[self.signal_idx]
+        if self.latest_static_file_labels is not None:
+            self.latest_label = self.latest_static_file_labels[self.signal_idx]
         return sig
