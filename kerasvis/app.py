@@ -3,7 +3,6 @@
 
 import StringIO
 import os
-import timeit
 
 import cv2
 import keras
@@ -164,7 +163,6 @@ class KerasVisApp(BaseApp):
             if 'kerasvis_layers' in panes:
                 layer_data_3D_highres = self._draw_layer_pane(panes['kerasvis_layers'])
             if 'kerasvis_aux' in panes:
-                # When  plotting signals, this panel is broken
                 self._draw_aux_pane(panes['kerasvis_aux'], layer_data_3D_highres)
             if 'kerasvis_back' in panes:
                 # Draw back pane as normal
@@ -326,18 +324,13 @@ class KerasVisApp(BaseApp):
         elif state_layers_pane_filter_mode == 3:
 
             if len(layer_dat_3D.shape) > 1:
-                selected_unit, title = None, None
-                r, c = tile_rows, tile_cols
-                if self.state.cursor_area == 'bottom':
-                    selected_unit = self.state.selected_unit
+                selected_unit, title, r, c, hide_axis = None, None, tile_rows, tile_cols, True
+                if self.state.cursor_area == 'bottom' and state_layers_pane_zoom_mode == 1:
+                    r, c, hide_axis = 1, 1, False
+                    layer_dat_3D = layer_dat_3D[self.state.selected_unit:self.state.selected_unit + 1]
+                    title = 'Layer {}, Filter {}'.format(self.state._layers[self.state.layer_idx],
+                                                         (self.state.selected_unit + 1))
 
-                    if state_layers_pane_zoom_mode == 1:
-                        layer_dat_3D = layer_dat_3D[selected_unit:selected_unit + 1]
-                        r, c = 1, 1
-                        title = 'Layer {}, Filter {}'.format(self.state._layers[self.state.layer_idx],
-                                                             (self.state.selected_unit + 1))
-
-                # start_time = timeit.default_timer()
                 display_3D = plt_plot_filters_blit(
                     y=layer_dat_3D,
                     x=None,
@@ -345,44 +338,9 @@ class KerasVisApp(BaseApp):
                     rows=r,
                     cols=c,
                     title=title,
-                    log_scale=self.state.log_scale
+                    log_scale=self.state.log_scale,
+                    hide_axis=hide_axis
                 )
-                # elapsed = timeit.default_timer() - start_time
-                # print('plt_plot_filters_blit function ran for {}'.format(elapsed))
-
-                # start_time = timeit.default_timer()
-                # display_3D = plt_plot_filters_fast(
-                #     y=layer_dat_3D,
-                #     x=None,
-                #     shape=(pane.data.shape[0], pane.data.shape[1]),
-                #     rows=tile_rows,
-                #     cols=tile_cols,
-                #     title=title,
-                #     share_axes=True,
-                #     log_scale=self.state.log_scale
-                # )
-                # elapsed = timeit.default_timer() - start_time
-                # print('plt_plot_filters_fast function ran for {}'.format(elapsed))
-                # print(type(display_3D), display_3D.shape)
-
-                # start_time = timeit.default_timer()
-                # display_3D = plt_plot_filters(
-                #     layer_dat_3D,
-                #     None,
-                #     (pane.data.shape[0], pane.data.shape[1]),
-                #     tile_rows,
-                #     tile_cols,
-                #     selected_unit,
-                #     self.settings.kerasvis_layer_clr_cursor,
-                #     title=title,
-                #     share_axes=False,
-                #     log_scale=self.state.log_scale
-                # )
-                # elapsed = timeit.default_timer() - start_time
-                # print('plt_plot_filters function ran for {}'.format(elapsed))
-
-                # display_2D_resize = ensure_uint255_and_resize_to_fit(display_3D, pane.data.shape)
-                # display_3D_highres = display_3D
             else:
                 state_layers_pane_filter_mode = 0
 
@@ -419,28 +377,6 @@ class KerasVisApp(BaseApp):
                     x_axis_label=x_axis_label,
                     y_axis_label=y_axis_label
                 )
-                # elapsed = timeit.default_timer() - start_time
-                # print('plt_plot_filters_blit function ran for {}'.format(elapsed))
-
-                # start_time = timeit.default_timer()
-                # display_3D = plt_plot_filters(
-                #     layer_dat_3D,
-                #     extra['y'],
-                #     (pane.data.shape[0], pane.data.shape[1]),
-                #     tile_rows,
-                #     tile_cols,
-                #     selected_unit=selected_unit,
-                #     selected_unit_color=self.settings.kerasvis_layer_clr_cursor,
-                #     title=title,
-                #     x_axis_label=x_axis_label,
-                #     y_axis_label=y_axis_label,
-                #     share_axes=False,
-                #     log_scale=self.state.log_scale
-                # )
-                # elapsed = timeit.default_timer() - start_time
-                # print('plt_plot_filters function ran for {}'.format(elapsed))
-                # display_2D_resize = ensure_uint255_and_resize_to_fit(display_3D, pane.data.shape)
-                # display_3D_highres = display_3D
 
             # TODO
 
@@ -553,6 +489,19 @@ class KerasVisApp(BaseApp):
                 if self.state.backprop_selection_frozen and self.state.layer == self.state.backprop_layer:
                     highlights[self.state.backprop_unit] = self.settings.kerasvis_layer_clr_back_sel  # in [0,1] range
 
+            if self.state.cursor_area == 'bottom' and state_layers_pane_filter_mode in (3, 4):
+                # pane.data[0:display_2D_resize.shape[0], 0:2, :] = to_255(self.settings.window_background)
+                # pane.data[0:2, 0:display_2D_resize.shape[1], :] = to_255(self.settings.window_background)
+                display_3D[self.state.selected_unit, 0:display_3D.shape[1], 0:2,
+                :] = self.settings.kerasvis_layer_clr_cursor
+                display_3D[self.state.selected_unit, 0:2, 0:display_3D.shape[2],
+                :] = self.settings.kerasvis_layer_clr_cursor
+
+                display_3D[self.state.selected_unit, 0:display_3D.shape[1], -2:,
+                :] = self.settings.kerasvis_layer_clr_cursor
+                display_3D[self.state.selected_unit, -2:, 0:display_3D.shape[2],
+                :] = self.settings.kerasvis_layer_clr_cursor
+
             _, display_2D = tile_images_make_tiles(display_3D, hw=(tile_rows, tile_cols), padval=padval,
                                                    highlights=highlights)
 
@@ -573,9 +522,9 @@ class KerasVisApp(BaseApp):
         pane.data[:] = to_255(self.settings.window_background)
         pane.data[0:display_2D_resize.shape[0], 0:display_2D_resize.shape[1], :] = display_2D_resize
 
-        # Add background strip around the top and left edges
-        pane.data[0:display_2D_resize.shape[0], 0:2, :] = to_255(self.settings.window_background)
-        pane.data[0:2, 0:display_2D_resize.shape[1], :] = to_255(self.settings.window_background)
+        # # Add background strip around the top and left edges
+        # pane.data[0:display_2D_resize.shape[0], 0:2, :] = to_255(self.settings.window_background)
+        # pane.data[0:2, 0:display_2D_resize.shape[1], :] = to_255(self.settings.window_background)
 
         if self.settings.kerasvis_label_layers and \
                 self.state.layer in self.settings.kerasvis_label_layers and \
@@ -595,21 +544,19 @@ class KerasVisApp(BaseApp):
         pane.data[:] = to_255(self.settings.window_background)
 
         with self.state.lock:
-            if self.state.layers_pane_filter_mode == 4:
-                mode = 'none'
-            elif self.state.cursor_area == 'bottom':
-                if self.state.layers_pane_filter_mode in (0, 1, 2):
-                    mode = 'selected'
-                else:
-                    mode = 'prob_labels'
-            else:
+            if self.state.layers_pane_zoom_mode == 1:
                 mode = 'prob_labels'
+            elif self.state.cursor_area == 'bottom':
+                mode = 'selected'
+            elif self.state.layers_pane_filter_mode in (0, 1, 2, 3):
+                mode = 'prob_labels'
+            else:
+                mode = 'none'
 
         if mode == 'selected':
-            if self.state.layers_pane_filter_mode in (0, 1, 2):
-                unit_data = layer_data_normalized[self.state.selected_unit]
-                unit_data_resize = ensure_uint255_and_resize_to_fit(unit_data, pane.data.shape)
-                pane.data[0:unit_data_resize.shape[0], 0:unit_data_resize.shape[1], :] = unit_data_resize
+            unit_data = layer_data_normalized[self.state.selected_unit]
+            unit_data_resize = ensure_uint255_and_resize_to_fit(unit_data, pane.data.shape)
+            pane.data[0:unit_data_resize.shape[0], 0:unit_data_resize.shape[1], :] = unit_data_resize
         elif mode == 'prob_labels':
             self._draw_prob_labels_pane(pane)
 
