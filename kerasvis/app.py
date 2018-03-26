@@ -325,11 +325,13 @@ class KerasVisApp(BaseApp):
 
             if len(layer_dat_3D.shape) > 1:
                 selected_unit, title, r, c, hide_axis = None, None, tile_rows, tile_cols, True
+                x_axis_label, y_axis_label = None, None
                 if self.state.cursor_area == 'bottom' and state_layers_pane_zoom_mode == 1:
                     r, c, hide_axis = 1, 1, False
                     layer_dat_3D = layer_dat_3D[self.state.selected_unit:self.state.selected_unit + 1]
                     title = 'Layer {}, Filter {}'.format(self.state._layers[self.state.layer_idx],
                                                          (self.state.selected_unit + 1))
+                    x_axis_label, y_axis_label = 'Time', 'Activation'
 
                 display_3D = plt_plot_filters_blit(
                     y=layer_dat_3D,
@@ -339,7 +341,9 @@ class KerasVisApp(BaseApp):
                     cols=c,
                     title=title,
                     log_scale=self.state.log_scale,
-                    hide_axis=hide_axis
+                    hide_axis=hide_axis,
+                    x_axis_label=x_axis_label,
+                    y_axis_label=y_axis_label
                 )
             else:
                 state_layers_pane_filter_mode = 0
@@ -349,14 +353,13 @@ class KerasVisApp(BaseApp):
             if self.state.extra_info is not None:
                 extra = self.state.extra_info.item()
                 layer_dat_3D = extra['x'][self.state.layer_idx]
-                title, x_axis_label, y_axis_label = None, None, None
-                r, c = tile_rows, tile_cols
+                title, x_axis_label, y_axis_label, r, c, hide_axis = None, None, None, tile_rows, tile_cols, True
 
                 if self.state.cursor_area == 'bottom':
                     selected_unit = self.state.selected_unit
 
                     if state_layers_pane_zoom_mode == 1:
-                        r, c = 1, 1
+                        r, c, hide_axis = 1, 1, False
                         layer_dat_3D = layer_dat_3D[selected_unit:selected_unit + 1]
                         title = 'Layer {}, Filter {} \n {}'.format(self.state._layers[self.state.layer_idx],
                                                                    (self.state.selected_unit + 1), extra['title'])
@@ -375,7 +378,8 @@ class KerasVisApp(BaseApp):
                     title=title,
                     log_scale=self.state.log_scale,
                     x_axis_label=x_axis_label,
-                    y_axis_label=y_axis_label
+                    y_axis_label=y_axis_label,
+                    hide_axis=hide_axis
                 )
 
             # TODO
@@ -383,8 +387,6 @@ class KerasVisApp(BaseApp):
             # if hasattr(self.settings, 'static_files_extra_fn'):
             #     self.data = self.settings.static_files_extra_fn(self.latest_static_file)
             #      self.state.layer_idx
-
-            pass
 
         if len(layer_dat_3D.shape) == 1:
             layer_dat_3D = layer_dat_3D[:, np.newaxis, np.newaxis]
@@ -477,9 +479,6 @@ class KerasVisApp(BaseApp):
         if display_3D.shape[1] == 1:
             display_3D = np.tile(display_3D, (1, 3, 3, 1))
 
-        if display_3D_highres is None:
-            display_3D_highres = display_3D
-
         if state_layers_pane_zoom_mode in (0, 2):
 
             highlights = [None] * n_tiles
@@ -510,7 +509,13 @@ class KerasVisApp(BaseApp):
             if state_layers_pane_zoom_mode == 2:
                 display_2D_resize = display_2D_resize * 0
 
+            if display_3D_highres is None:
+                display_3D_highres = display_3D
+
         elif state_layers_pane_zoom_mode == 1:
+            if display_3D_highres is None:
+                display_3D_highres = display_3D
+
             # Mode 1: zoomed selection
             if state_layers_pane_filter_mode in (0, 1, 2):
                 unit_data = display_3D_highres[self.state.selected_unit]
