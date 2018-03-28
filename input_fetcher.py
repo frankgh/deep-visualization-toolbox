@@ -162,8 +162,6 @@ class InputSignalFetcher(CodependentThread):
             elif new_value + self.signal_zoom_level > self.latest_signal.shape[1]:
                 new_value = self.latest_signal.shape[1] - self.signal_zoom_level
 
-            print 'signal offset', new_value
-
             if new_value != self.signal_offset:
                 self.signal_offset = new_value
                 self._plot()

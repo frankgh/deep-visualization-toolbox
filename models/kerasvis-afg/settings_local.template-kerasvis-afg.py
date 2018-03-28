@@ -16,13 +16,14 @@ window_panes = (
     ('kerasvis_status', (900, 0, 30, 1500)),
     ('kerasvis_control', (0, 300, 90, 900)),
     ('kerasvis_layers', (90, 300, 810, 900)),
-    ('kerasvis_jpgvis', (0, 1200, 900, 300)),
+    ('kerasvis_jpgvis', (300, 1200, 600, 300)),
+    ('kerasvis_selected', (0, 1200, 300, 300)),
 )
 
-# static_files_dir = '%DVT_ROOT%/models/kerasvis-afg/patients'
+static_files_dir = '%DVT_ROOT%/models/kerasvis-afg/patients'
 # static_files_dir = '%DVT_ROOT%/models/kerasvis-afg/patients_subset'
 # static_files_dir = '%DVT_ROOT%/models/kerasvis-afg/patients_s2'
-static_files_dir = '%DVT_ROOT%/models/kerasvis-afg/patients_wavelet'
+# static_files_dir = '%DVT_ROOT%/models/kerasvis-afg/patients_wavelet'
 
 #  Fpz-Cz <- location on the head and EEG is measuring potential in electricity
 signal_labels = ['EEG Fpz-Cz',
@@ -91,5 +92,7 @@ def kerasvis_layer_pretty_name_fn(name):
 # Display tweaks.
 # Scale all window panes in UI by this factor
 global_scale = 1.0
+# global_scale = .8
 # Scale all fonts by this factor
 global_font_size = 0.7
+# global_font_size = 0.65

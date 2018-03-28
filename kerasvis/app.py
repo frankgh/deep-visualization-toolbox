@@ -162,7 +162,10 @@ class KerasVisApp(BaseApp):
             layer_data_3D_highres = None
             if 'kerasvis_layers' in panes:
                 layer_data_3D_highres = self._draw_layer_pane(panes['kerasvis_layers'])
-            if 'kerasvis_aux' in panes:
+            if 'kerasvis_selected' in panes:
+                self._draw_selected_pane(panes['kerasvis_selected'], layer_data_3D_highres)
+                self._draw_aux_pane(panes['kerasvis_aux'], None)
+            elif 'kerasvis_aux' in panes:
                 self._draw_aux_pane(panes['kerasvis_aux'], layer_data_3D_highres)
             if 'kerasvis_back' in panes:
                 # Draw back pane as normal
@@ -545,6 +548,19 @@ class KerasVisApp(BaseApp):
 
         return display_3D_highres
 
+    def _draw_selected_pane(self, pane, layer_data_normalized):
+        pane.data[:] = to_255(self.settings.window_background)
+        with self.state.lock:
+            if self.state.cursor_area == 'bottom' and self.state.layers_pane_filter_mode in (0, 1, 2, 3):
+                mode = 'selected'
+            else:
+                mode = 'none'
+
+        if mode == 'selected':
+            unit_data = layer_data_normalized[self.state.selected_unit]
+            unit_data_resize = ensure_uint255_and_resize_to_fit(unit_data, pane.data.shape)
+            pane.data[0:unit_data_resize.shape[0], 0:unit_data_resize.shape[1], :] = unit_data_resize
+
     def _draw_aux_pane(self, pane, layer_data_normalized):
         pane.data[:] = to_255(self.settings.window_background)
 
@@ -557,6 +573,9 @@ class KerasVisApp(BaseApp):
                 mode = 'prob_labels'
             else:
                 mode = 'none'
+
+        if mode == 'selected' and layer_data_normalized is None:
+            mode = 'prob_labels'
 
         if mode == 'selected':
             unit_data = layer_data_normalized[self.state.selected_unit]
