@@ -13,7 +13,7 @@ from keras.models import load_model
 from app_base import BaseApp
 from image_misc import FormattedString, cv2_typeset_text, to_255, norm01, norm01c, tile_images_normalize, \
     ensure_float01, tile_images_make_tiles, ensure_uint255_and_resize_to_fit, get_tiles_height_width_ratio, \
-    plt_plot_filters_blit
+    plt_plot_filters_blit, plt_plot_filter
 from jpg_vis_loading_thread import JPGVisLoadingThread
 from kerasvis.keras_proc_thread import KerasProcThread
 from kerasvis_app_state import KerasVisAppState
@@ -159,14 +159,14 @@ class KerasVisApp(BaseApp):
                 self._draw_control_pane(panes['kerasvis_control'])
             if 'kerasvis_status' in panes:
                 self._draw_status_pane(panes['kerasvis_status'])
-            layer_data_3D_highres = None
+            layer_data_3D_highres, selected_unit_highres = None, None
             if 'kerasvis_layers' in panes:
-                layer_data_3D_highres = self._draw_layer_pane(panes['kerasvis_layers'])
+                layer_data_3D_highres, selected_unit_highres = self._draw_layer_pane(panes['kerasvis_layers'])
             if 'kerasvis_selected' in panes:
-                self._draw_selected_pane(panes['kerasvis_selected'], layer_data_3D_highres)
+                self._draw_selected_pane(panes['kerasvis_selected'], layer_data_3D_highres, selected_unit_highres)
                 self._draw_aux_pane(panes['kerasvis_aux'], None)
             elif 'kerasvis_aux' in panes:
-                self._draw_aux_pane(panes['kerasvis_aux'], layer_data_3D_highres)
+                self._draw_aux_pane(panes['kerasvis_aux'], layer_data_3D_highres, selected_unit_highres)
             if 'kerasvis_back' in panes:
                 # Draw back pane as normal
                 self._draw_back_pane(panes['kerasvis_back'])
@@ -291,10 +291,13 @@ class KerasVisApp(BaseApp):
 
         if not hasattr(self.net, 'intermediate_predictions') or \
                 self.net.intermediate_predictions is None:
-            return None
+            return None, None
 
+        display_3D_highres, selected_unit_highres = None, None
         out = self.net.intermediate_predictions[self.state.layer_idx]
-        # print '_draw_layer_pane'
+
+        if self.state.layers_pane_filter_mode == 4 and self.state.extra_info is None:
+            self.state.layers_pane_filter_mode = 0
 
         state_layers_pane_filter_mode = self.state.layers_pane_filter_mode
         assert state_layers_pane_filter_mode in (0, 1, 2, 3, 4)
@@ -327,7 +330,7 @@ class KerasVisApp(BaseApp):
         elif state_layers_pane_filter_mode == 3:
 
             if len(layer_dat_3D.shape) > 1:
-                selected_unit, title, r, c, hide_axis = None, None, tile_rows, tile_cols, True
+                title, r, c, hide_axis = None, tile_rows, tile_cols, True
                 x_axis_label, y_axis_label = None, None
                 if self.state.cursor_area == 'bottom' and state_layers_pane_zoom_mode == 1:
                     r, c, hide_axis = 1, 1, False
@@ -348,6 +351,18 @@ class KerasVisApp(BaseApp):
                     x_axis_label=x_axis_label,
                     y_axis_label=y_axis_label
                 )
+
+                if self.state.cursor_area == 'bottom' and state_layers_pane_zoom_mode == 0:
+                    selected_unit_highres = plt_plot_filter(
+                        x=None,
+                        y=layer_dat_3D[self.state.selected_unit],
+                        title='Layer {}, Filter {}'.format(self.state._layers[self.state.layer_idx],
+                                                           (self.state.selected_unit + 1)),
+                        log_scale=self.state.log_scale,
+                        x_axis_label='Time',
+                        y_axis_label='Activation'
+                    )
+
             else:
                 state_layers_pane_filter_mode = 0
 
@@ -359,11 +374,9 @@ class KerasVisApp(BaseApp):
                 title, x_axis_label, y_axis_label, r, c, hide_axis = None, None, None, tile_rows, tile_cols, True
 
                 if self.state.cursor_area == 'bottom':
-                    selected_unit = self.state.selected_unit
-
                     if state_layers_pane_zoom_mode == 1:
                         r, c, hide_axis = 1, 1, False
-                        layer_dat_3D = layer_dat_3D[selected_unit:selected_unit + 1]
+                        layer_dat_3D = layer_dat_3D[self.state.selected_unit:self.state.selected_unit + 1]
                         title = 'Layer {}, Filter {} \n {}'.format(self.state._layers[self.state.layer_idx],
                                                                    (self.state.selected_unit + 1), extra['title'])
                         x_axis_label, y_axis_label = extra['x_axis'], extra['y_axis']
@@ -385,6 +398,17 @@ class KerasVisApp(BaseApp):
                     hide_axis=hide_axis
                 )
 
+                if self.state.cursor_area == 'bottom' and state_layers_pane_zoom_mode == 0:
+                    selected_unit_highres = plt_plot_filter(
+                        x=extra['y'],
+                        y=layer_dat_3D[self.state.selected_unit],
+                        title='Layer {}, Filter {} \n {}'.format(self.state._layers[self.state.layer_idx],
+                                                                 (self.state.selected_unit + 1), extra['title']),
+                        log_scale=self.state.log_scale,
+                        x_axis_label=extra['x_axis'],
+                        y_axis_label=extra['y_axis']
+                    )
+
             # TODO
 
             # if hasattr(self.settings, 'static_files_extra_fn'):
@@ -399,7 +423,6 @@ class KerasVisApp(BaseApp):
         else:
             padval = self.settings.window_background
 
-        display_3D_highres = None
         if self.state.pattern_mode:
             # Show desired patterns loaded from disk
 
@@ -546,39 +569,51 @@ class KerasVisApp(BaseApp):
             lines = [FormattedString(self.labels[self.state.selected_unit], defaults)]
             cv2_typeset_text(pane.data, lines, loc_base)
 
-        return display_3D_highres
+        return display_3D_highres, selected_unit_highres
 
-    def _draw_selected_pane(self, pane, layer_data_normalized):
+    def _draw_selected_pane(self, pane, layer_data_normalized, selected_unit_highres=None):
         pane.data[:] = to_255(self.settings.window_background)
+
         with self.state.lock:
-            if self.state.cursor_area == 'bottom' and self.state.layers_pane_filter_mode in (0, 1, 2, 3):
-                mode = 'selected'
-            else:
-                mode = 'none'
+            mode = 'selected' if self.state.cursor_area == 'bottom' else 'none'
+
+
 
         if mode == 'selected':
-            unit_data = layer_data_normalized[self.state.selected_unit]
-            unit_data_resize = ensure_uint255_and_resize_to_fit(unit_data, pane.data.shape)
-            pane.data[0:unit_data_resize.shape[0], 0:unit_data_resize.shape[1], :] = unit_data_resize
+            unit_data = None
+            if selected_unit_highres is not None:
+                unit_data = selected_unit_highres
+            else:
+                if self.state.selected_unit < len(layer_data_normalized):
+                    unit_data = layer_data_normalized[self.state.selected_unit]
+                elif len(layer_data_normalized) == 1:
+                    unit_data = layer_data_normalized[0]
 
-    def _draw_aux_pane(self, pane, layer_data_normalized):
+            if unit_data is not None:
+                unit_data_resize = ensure_uint255_and_resize_to_fit(unit_data, pane.data.shape)
+                pane.data[0:unit_data_resize.shape[0], 0:unit_data_resize.shape[1], :] = unit_data_resize
+
+    def _draw_aux_pane(self, pane, layer_data_normalized, selected_unit_highres=None):
         pane.data[:] = to_255(self.settings.window_background)
 
         with self.state.lock:
             if self.state.layers_pane_zoom_mode == 1:
                 mode = 'prob_labels'
-            elif self.state.cursor_area == 'bottom':
+            elif self.state.cursor_area == 'bottom' and layer_data_normalized is not None:
                 mode = 'selected'
             elif self.state.layers_pane_filter_mode in (0, 1, 2, 3):
                 mode = 'prob_labels'
             else:
                 mode = 'none'
 
-        if mode == 'selected' and layer_data_normalized is None:
-            mode = 'prob_labels'
+        # if mode == 'selected' and layer_data_normalized is None and selected_unit_highres is None:
+        #     mode = 'prob_labels'
 
         if mode == 'selected':
-            unit_data = layer_data_normalized[self.state.selected_unit]
+            if selected_unit_highres is not None:
+                unit_data = selected_unit_highres
+            else:
+                unit_data = layer_data_normalized[self.state.selected_unit]
             unit_data_resize = ensure_uint255_and_resize_to_fit(unit_data, pane.data.shape)
             pane.data[0:unit_data_resize.shape[0], 0:unit_data_resize.shape[1], :] = unit_data_resize
         elif mode == 'prob_labels':

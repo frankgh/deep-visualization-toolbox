@@ -252,7 +252,7 @@ class InputSignalFetcher(CodependentThread):
 
     def _plot(self):
         markers = None
-        start_time = timeit.default_timer()
+        # start_time = timeit.default_timer()
         sig = self.latest_static_file_data[self.signal_idx]
         if self.signal_apply_filter and hasattr(self.settings, 'signal_filter_fn'):
             sig, markers = self.settings.signal_filter_fn(sig)
@@ -263,8 +263,7 @@ class InputSignalFetcher(CodependentThread):
             zoom_level=self.signal_zoom_level,
             markers=markers
         )
-        elapsed = timeit.default_timer() - start_time
-        print('plt_plot_signal function ran for', elapsed)
+        # print('plt_plot_signal function ran for', timeit.default_timer() - start_time)
 
         if not self.static_file_stretch_mode:
             im = crop_to_square(im)

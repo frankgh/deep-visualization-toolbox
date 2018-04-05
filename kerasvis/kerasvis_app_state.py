@@ -49,7 +49,7 @@ class KerasVisAppState(object):
         self.back_filt_mode = 'raw'  # 'raw', 'gray', 'norm', 'normblur'
         self.pattern_mode = False  # Whether or not to show desired patterns instead of activations in layers pane
         self.layers_pane_zoom_mode = 0  # 0: off, 1: zoom selected (and show pref in small pane), 2: zoom backprop
-        self.log_scale = 0 # 0: off, 1: enable log scale for plots
+        self.log_scale = 0  # 0: off, 1: enable log scale for plots
         self.layers_pane_filter_mode = 0  # 0: square, 1: average
         self.layers_show_back = False  # False: show forward activations. True: show backward diffs
         self.show_label_predictions = self.settings.kerasvis_init_show_label_predictions
@@ -90,7 +90,6 @@ class KerasVisAppState(object):
                 self.move_selection('down')
             elif tag == 'sel_up':
                 self.move_selection('up')
-
             elif tag == 'sel_left_fast':
                 self.move_selection('left', self.settings.kerasvis_fast_move_dist)
             elif tag == 'sel_right_fast':
@@ -99,7 +98,6 @@ class KerasVisAppState(object):
                 self.move_selection('down', self.settings.kerasvis_fast_move_dist)
             elif tag == 'sel_up_fast':
                 self.move_selection('up', self.settings.kerasvis_fast_move_dist)
-
             elif tag == 'boost_individual':
                 self.layer_boost_indiv_idx = (self.layer_boost_indiv_idx + 1) % len(self.layer_boost_indiv_choices)
                 self.layer_boost_indiv = self.layer_boost_indiv_choices[self.layer_boost_indiv_idx]
@@ -172,15 +170,12 @@ class KerasVisAppState(object):
                 if self.layers_pane_zoom_mode == 2 and not self.back_enabled:
                     # Skip zoom into backprop pane when backprop is off
                     self.layers_pane_zoom_mode = 0
-
             elif tag == 'filter_mode':
                 self.layers_pane_filter_mode = (self.layers_pane_filter_mode + 1) % 5
             elif tag == 'toggle_label_predictions':
                 self.show_label_predictions = not self.show_label_predictions
-
             elif tag == 'toggle_unit_jpgs':
                 self.show_unit_jpgs = not self.show_unit_jpgs
-
             else:
                 key_handled = False
 

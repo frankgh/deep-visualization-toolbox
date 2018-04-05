@@ -74,7 +74,7 @@ _.add('zoom_in_fast', '+', 'Zoom into signal (+ or SHIFT +)')
 _.add('zoom_out', '-', 'Zoom out signal (- or SHIFT -)')
 _.add('move_right', ']', 'Move signal right (] or })')
 _.add('move_left', '[', 'Move signal left ([ or {)')
-_.add('stretch_mode', '0', 'Toggle between cropping and stretching static files to be square')
+_.add('stretch_mode', '0', 'Toggle between cropping and stretching static signal plots to be square')
 _.add('debug_level', '5', 'Cycle debug level between 0 (quiet), 1 (some timing info) and 2 (all timing info)')
 _.add('quit', 'q', 'Quit')
 

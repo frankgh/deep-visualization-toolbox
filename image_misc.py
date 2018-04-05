@@ -56,7 +56,7 @@ def cv2_read_cap_rgb(cap, saveto=None):
 
 
 def plt_plot_signal(data, labels, zoom_level=-1, offset=0, markers=None, title=None):
-    fig = Figure()
+    fig = Figure(figsize=(5, 5))
     canvas = FigureCanvas(fig)
     ax = None
 
@@ -70,13 +70,13 @@ def plt_plot_signal(data, labels, zoom_level=-1, offset=0, markers=None, title=N
 
     s = offset
     e = s + zoom_level
-    y = arange(s, e)
+    x = arange(s, e)
 
     for i in range(data.shape[1]):
         c = next(color)
         label = labels[i] if labels is not None else 'Signal {}'.format(i + 1)
         ax = fig.add_subplot(data.shape[1], 1, (i + 1), sharex=ax)
-        ax.plot(y, data[s:e, i], lw=2, label=label, c=c)
+        ax.plot(x, data[s:e, i], lw=1, label=label, c=c)
         # # ax.set_adjustable('box-forced')
         # ax.set_xlim(left=0, right=zoom_level)
         # ax.get_xaxis().set_visible(i == data.shape[1] - 1)
@@ -88,7 +88,8 @@ def plt_plot_signal(data, labels, zoom_level=-1, offset=0, markers=None, title=N
 
         if markers is not None and i in markers:
             for val in markers[i]:
-                ax.axvline(x=val)
+                if val >= s and val < e:
+                    ax.axvline(x=val)
 
     if title is not None:
         fig.suptitle(title)
@@ -101,6 +102,29 @@ def plt_plot_signal(data, labels, zoom_level=-1, offset=0, markers=None, title=N
 
     im = fromstring(canvas.tostring_rgb(), dtype='uint8')
     im.shape = h, w, 3
+    return im
+
+
+def plt_plot_filter(x, y, title, x_axis_label, y_axis_label, log_scale):
+    fig, ax = plt.subplots(1, 1, figsize=(4, 4))
+    canvas = FigureCanvas(fig)
+    x = arange(0, y.shape[0]) if x is None else x
+    if log_scale == 1:
+        ax.semilogy(x, y, lw=2)
+    else:
+        ax.plot(x, y, lw=2)
+    ax.set(xlabel=x_axis_label, ylabel=y_axis_label, title=title)
+
+    fig.tight_layout()
+    canvas.draw()  # draw the canvas, cache the renderer
+
+    l, b, w, h = fig.bbox.bounds
+    w, h = int(w), int(h)
+    im = fromstring(canvas.tostring_rgb(), dtype='uint8')
+    im.shape = h, w, 3
+    fig.clf()
+    plt.clf()
+    plt.close()
     return im
 
 
@@ -120,7 +144,6 @@ def plt_plot_filters_blit(y, x, shape, rows, cols,
     # elif log_scale == 3:
     #     x = log(x)
     #     y = log(y)
-
     shape = (max(2, ceil(shape[1] / 80 / cols)), max(2, ceil(shape[0] / 80 / rows)))
     fig, ax = plt.subplots(1, 1, figsize=shape)
     canvas = FigureCanvas(fig)
