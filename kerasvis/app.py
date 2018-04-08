@@ -157,8 +157,6 @@ class KerasVisApp(BaseApp):
 
             if 'kerasvis_control' in panes:
                 self._draw_control_pane(panes['kerasvis_control'])
-            if 'kerasvis_status' in panes:
-                self._draw_status_pane(panes['kerasvis_status'])
             layer_data_3D_highres, selected_unit_highres = None, None
             if 'kerasvis_layers' in panes:
                 layer_data_3D_highres, selected_unit_highres = self._draw_layer_pane(panes['kerasvis_layers'])
@@ -175,6 +173,8 @@ class KerasVisApp(BaseApp):
                     self._draw_back_pane(panes['kerasvis_layers'])
             if 'kerasvis_jpgvis' in panes:
                 self._draw_jpgvis_pane(panes['kerasvis_jpgvis'])
+            if 'kerasvis_status' in panes:
+                self._draw_status_pane(panes['kerasvis_status'])
 
             with self.state.lock:
                 self.state.drawing_stale = False
@@ -264,6 +264,21 @@ class KerasVisApp(BaseApp):
             print >> status, 'pattern' if self.state.pattern_mode else (
                 'back' if self.state.layers_show_back else 'fwd'),
             print >> status, '%s:%d |' % (self.state.layer, self.state.selected_unit),
+
+            filter_mode = self.state.layers_pane_filter_mode
+
+            if filter_mode == 1:
+                print >> status, 'View: Average |',
+            elif filter_mode == 2:
+                print >> status, 'View: Max |',
+            elif filter_mode == 3:
+                print >> status, 'View: Plot |',
+            elif filter_mode == 4:
+                print >> status, 'View: Extra |',
+            else:
+                print >> status, 'View: Activation |',
+
+
             if not self.state.back_enabled:
                 print >> status, 'Back: off',
             else:
