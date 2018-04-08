@@ -46,8 +46,8 @@ class Bindings(object):
     def add_multikey(self, tag, key_labels, help_text):
         for key_label in key_labels:
             assert key_label not in self._key_label_to_tag, (
-                'Key "%s" cannot be bound to "%s" because it is already bound to "%s"' %
-                (key_label, tag, self._key_label_to_tag[key_label])
+                    'Key "%s" cannot be bound to "%s" because it is already bound to "%s"' %
+                    (key_label, tag, self._key_label_to_tag[key_label])
             )
             self._key_label_to_tag[key_label] = tag
         self._tag_to_key_labels[tag] = key_labels
@@ -65,6 +65,15 @@ _.add_multikey('static_file_decrement', ['w', 'pgup'], 'Load previous static fil
 _.add('signal_increment', '7', 'Load next signal from loaded static file')
 _.add('signal_decrement', '6', 'Load previous signal from loaded static file')
 _.add('help_mode', 'h', 'Toggle this help screen')
+_.add('custom_filter', 'g', 'Apply custom filter (signal_filter_fn defined in settings_local)')
+_.add('zoom_in', '=', '')
+_.add('zoom_out_fast', '_', '')
+_.add('move_right_fast', '}', '')
+_.add('move_left_fast', '{', '')
+_.add('zoom_in_fast', '+', 'Zoom into signal (+ or SHIFT +)')
+_.add('zoom_out', '-', 'Zoom out signal (- or SHIFT -)')
+_.add('move_right', ']', 'Move signal right (] or })')
+_.add('move_left', '[', 'Move signal left ([ or {)')
 _.add('stretch_mode', '0', 'Toggle between cropping and stretching static files to be square')
 _.add('debug_level', '5', 'Cycle debug level between 0 (quiet), 1 (some timing info) and 2 (all timing info)')
 _.add('quit', 'q', 'Quit')
@@ -82,8 +91,10 @@ _.add('sel_up_fast', 'I', '')
 _.add_multikey('sel_layer_left', ['u', 'U'], 'Select previous layer without moving cursor')
 _.add_multikey('sel_layer_right', ['o', 'O'], 'Select next layer without moving cursor')
 
+_.add('log_scale', 'x', 'Plot in the logarithmic scale')
 _.add('zoom_mode', 'z', 'Cycle zooming through {currently selected unit, backprop results, none}')
 _.add('pattern_mode', 's', 'Toggle overlay of preferred input pattern (regularized optimized images)')
+_.add('filter_mode', 'f', 'Toggle filter output visualization (square, average, max, signal, custom)')
 
 _.add('ez_back_mode_loop', 'b', 'Cycle through a few common backprop/deconv modes')
 _.add('freeze_back_unit', 'd', 'Freeze the bprop/deconv origin to be the currently selected unit')
@@ -94,7 +105,6 @@ _.add('back_filt_mode', 'm', '(expert) Change back output filter directly.')
 _.add('boost_gamma', 't', 'Boost contrast using gamma correction')
 _.add('boost_individual', 'T', 'Boost contrast by scaling each channel to use more of its individual range')
 _.add('toggle_label_predictions', '8', 'Turn on or off display of prob label values')
-_.add('toggle_unit_jpgs', '9',
-      'Turn on or off display of loaded jpg visualization')
+_.add('toggle_unit_jpgs', '9', 'Turn on or off display of loaded jpg visualization')
 
 bindings = _

@@ -1,5 +1,7 @@
 #! /usr/bin/env python
 
+import matplotlib
+matplotlib.use('Agg')
 from bindings import bindings
 from signal_vis import SignalVis
 

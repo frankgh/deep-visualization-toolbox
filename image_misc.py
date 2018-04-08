@@ -1,12 +1,13 @@
 #! /usr/bin/env python
 
 import cv2
-import numpy as np
+import matplotlib.pyplot as plt
 import skimage
 import skimage.io
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 from matplotlib.figure import Figure
 from matplotlib.pyplot import cm
+from numpy import arange, array, newaxis, tile, linspace, pad, expand_dims, fromstring, ceil, dtype, float32, sqrt, dot
 
 from misc import WithTimer
 
@@ -34,7 +35,7 @@ def norm0255(arr):
     arr = arr.copy()
     arr -= arr.min()
     arr *= 255.0 / (arr.max() + 1e-10)
-    arr = np.array(arr, 'uint8')
+    arr = array(arr, 'uint8')
     return arr
 
 
@@ -44,9 +45,9 @@ def cv2_read_cap_rgb(cap, saveto=None):
         cv2.imwrite(saveto, frame)
     if len(frame.shape) == 2:
         # Upconvert single channel grayscale to color
-        frame = frame[:, :, np.newaxis]
+        frame = frame[:, :, newaxis]
     if frame.shape[2] == 1:
-        frame = np.tile(frame, (1, 1, 3))
+        frame = tile(frame, (1, 1, 3))
     if frame.shape[2] > 3:
         # Chop off transparency
         frame = frame[:, :, :3]
@@ -54,26 +55,268 @@ def cv2_read_cap_rgb(cap, saveto=None):
     return frame
 
 
-def plt_plot_signal(data, labels):
+def plt_plot_signal(data, labels, zoom_level=-1, offset=0, markers=None, title=None):
     fig = Figure()
     canvas = FigureCanvas(fig)
     ax = None
-    color = iter(cm.rainbow(np.linspace(0, 1, data.shape[1])))
+
+    if len(data.shape) == 1:
+        data = expand_dims(data, axis=1)
+
+    if zoom_level == -1:
+        zoom_level = data.shape[0]
+
+    color = iter(cm.rainbow(linspace(0, 1, data.shape[1])))
+
+    s = offset
+    e = s + zoom_level
+    y = arange(s, e)
 
     for i in range(data.shape[1]):
         c = next(color)
         label = labels[i] if labels is not None else 'Signal {}'.format(i + 1)
-        ax = fig.add_subplot(data.shape[1], 1, (i + 1), axisbelow=False, sharex=ax, sharey=ax)
-        ax.plot(data[6000:9000, i], linewidth=1, label=label, c=c)
+        ax = fig.add_subplot(data.shape[1], 1, (i + 1), sharex=ax)
+        ax.plot(y, data[s:e, i], lw=2, label=label, c=c)
+        # # ax.set_adjustable('box-forced')
+        # ax.set_xlim(left=0, right=zoom_level)
+        # ax.get_xaxis().set_visible(i == data.shape[1] - 1)
+
+        # ax.xaxis.set_ticks(arange(s, e + 1, (e - s) / 10.0))
+        # ax.xaxis.set_major_formatter(ticker.FormatStrFormatter('%0.1f'))
+
         ax.legend(loc='lower right')
 
+        if markers is not None and i in markers:
+            for val in markers[i]:
+                ax.axvline(x=val)
+
+    if title is not None:
+        fig.suptitle(title)
+    fig.tight_layout()
     fig.subplots_adjust(hspace=0)
     canvas.draw()  # draw the canvas, cache the renderer
 
     l, b, w, h = fig.bbox.bounds
     w, h = int(w), int(h)
 
-    im = np.fromstring(canvas.tostring_rgb(), dtype='uint8')
+    im = fromstring(canvas.tostring_rgb(), dtype='uint8')
+    im.shape = h, w, 3
+    return im
+
+
+def plt_plot_filters_blit(y, x, shape, rows, cols,
+                          title=None,
+                          x_axis_label=None,
+                          y_axis_label=None,
+                          log_scale=0,
+                          hide_axis=False):
+    res = []
+    x = arange(0, y.shape[1]) if x is None else x
+
+    # if log_scale == 1:
+    #     y = log(y)
+    # elif log_scale == 2:
+    #     x = log(x)
+    # elif log_scale == 3:
+    #     x = log(x)
+    #     y = log(y)
+
+    shape = (max(2, ceil(shape[1] / 80 / cols)), max(2, ceil(shape[0] / 80 / rows)))
+    fig, ax = plt.subplots(1, 1, figsize=shape)
+    canvas = FigureCanvas(fig)
+    ax.set_xlim(min(x), max(x))
+    ax.set_ylim(y.min(), y.max())
+
+    if hide_axis:
+        ax.xaxis.set_ticklabels([])
+        ax.yaxis.set_ticklabels([])
+        fig.subplots_adjust(left=0.05, bottom=0.05, right=0.95, top=0.95, hspace=0, wspace=0)
+    else:
+        if x_axis_label is not None:
+            ax.set_xlabel(x_axis_label)
+
+        if y_axis_label is not None:
+            ax.set_ylabel(y_axis_label)
+
+    if title is not None:
+        plt.title(title)
+
+    line, = ax.plot([], [], lw=2)
+
+    if not hide_axis:
+        fig.tight_layout()
+    canvas.draw()  # draw the canvas, cache the renderer
+
+    # keep bg in memory
+    background = fig.canvas.copy_from_bbox(ax.bbox)
+
+    for i in xrange(y.shape[0]):
+        line.set_data(x, y[i])
+        # line.set_color()
+
+        # restore background
+        fig.canvas.restore_region(background)
+
+        # redraw just the points
+        ax.draw_artist(line)
+
+        # fill in the axes rectangle
+        fig.canvas.blit(ax.bbox)
+
+        l, b, w, h = fig.bbox.bounds
+        w, h = int(w), int(h)
+        im = fromstring(canvas.tostring_rgb(), dtype='uint8')
+        im.shape = h, w, 3
+        res.append(im)
+
+    fig.clf()
+    plt.clf()
+    plt.close()
+    return array(res)
+
+
+def plt_plot_filters_fast(y, x, shape, rows, cols,
+                          title=None,
+                          x_axis_label=None,
+                          y_axis_label=None,
+                          share_axes=True,
+                          log_scale=0):
+    res = []
+    shape = (ceil(shape[1] / 80 / cols), ceil(shape[0] / 80 / rows))
+    fig, ax = plt.subplots(1, 1, figsize=shape)
+    canvas = FigureCanvas(fig)
+    # ax.set_aspect('equal')
+
+    if share_axes:
+        if x is not None:
+            min_x, max_x = min(x), max(x)
+        else:
+            min_x, max_x = 0, y.shape[1]
+        min_y, max_y = y.min(), y.max()
+        ax.set_xlim(min_x, max_x)
+        ax.set_ylim(min_y, max_y)
+
+    # ax.hold(True)
+    plt.subplots_adjust(left=0.185, bottom=0.125, right=0.98, top=0.98)
+    # plt.show(False)
+    # plt.draw()
+
+    # background = fig.canvas.copy_from_bbox(ax.bbox)
+    # points = ax.plot(x[0], linewidth=1)[0]
+
+    for i in xrange(y.shape[0]):
+        if x is not None:
+            if log_scale == 1:
+                ax.semilogy(x, y[i], linewidth=1)
+            else:
+                ax.plot(x, y[i], linewidth=1)
+        else:
+            if log_scale == 1:
+                ax.semilogy(y[i], linewidth=1)
+            else:
+                ax.plot(y[i], linewidth=1)
+
+        if x_axis_label is not None:
+            ax.set_xlabel(x_axis_label)
+
+        if y_axis_label is not None:
+            ax.set_ylabel(y_axis_label)
+
+        if title is not None:
+            plt.title(title)
+
+        # plt.autoscale(enable=True, axis='y', tight=True)
+        # plt.tight_layout()
+
+        # Turn off axes and set axes limits
+        # ax.axis('off')
+
+        canvas.draw()  # draw the canvas, cache the renderer
+
+        l, b, w, h = fig.bbox.bounds
+        w, h = int(w), int(h)
+        im = fromstring(canvas.tostring_rgb(), dtype='uint8')
+        im.shape = h, w, 3
+        res.append(im)
+        # ax.cla()
+
+    fig.clf()
+    return array(res)
+
+
+def plt_plot_filters(x, y, shape, rows, cols,
+                     selected_unit=None,
+                     selected_unit_color=None,
+                     title=None,
+                     x_axis_label=None,
+                     y_axis_label=None,
+                     share_axes=True,
+                     log_scale=0):
+    shape = (ceil(shape[1] / 80), ceil(shape[0] / 80))
+    fig = Figure(figsize=shape)
+    canvas = FigureCanvas(fig)
+    ax, highlighted_ax, right_ax, bottom_ax, curr, right, bottom = None, None, None, None, None, None, None
+
+    if selected_unit is not None:
+        row = selected_unit / cols
+        col = selected_unit % cols
+        curr = selected_unit
+        bottom = (selected_unit + cols) if row < rows - 1 else None
+        right = (selected_unit + 1) if col < cols - 1 else None
+
+    for i in xrange(x.shape[0]):
+        if share_axes:
+            ax = fig.add_subplot(rows, cols, (i + 1), axisbelow=False, sharex=ax, sharey=ax)
+        else:
+            ax = fig.add_subplot(rows, cols, (i + 1), axisbelow=False)
+
+        if y is not None:
+            if log_scale == 1:
+                ax.semilogy(y, x[i], linewidth=1)
+            else:
+                ax.plot(y, x[i], linewidth=1)
+        else:
+            if log_scale == 1:
+                ax.semilogy(x[i], linewidth=1)
+            else:
+                ax.plot(x[i], linewidth=1)
+            ax.set_xlim(left=0, right=x.shape[1] - 1)
+
+        ax.get_xaxis().set_visible(i >= ((rows - 1) * cols))
+        ax.get_yaxis().set_visible(i % cols == 0)
+        if i == curr:
+            highlighted_ax = ax
+        if i == bottom:
+            bottom_ax = ax
+        if i == right:
+            right_ax = ax
+        if x_axis_label is not None:
+            ax.set_xlabel(x_axis_label)
+        if y_axis_label is not None:
+            ax.set_ylabel(y_axis_label)
+
+    if highlighted_ax is not None:
+        for axis in ['top', 'bottom', 'left', 'right']:
+            highlighted_ax.spines[axis].set_linewidth(2.5)
+            highlighted_ax.spines[axis].set_color(selected_unit_color)
+
+        if bottom_ax is not None:
+            bottom_ax.spines['top'].set_linewidth(2)
+            bottom_ax.spines['top'].set_color(selected_unit_color)
+
+        if right_ax is not None:
+            right_ax.spines['left'].set_linewidth(2)
+            right_ax.spines['left'].set_color(selected_unit_color)
+
+    if title is not None:
+        fig.suptitle(title)
+    fig.tight_layout()
+    fig.subplots_adjust(hspace=0, wspace=0)
+    canvas.draw()  # draw the canvas, cache the renderer
+
+    l, b, w, h = fig.bbox.bounds
+    w, h = int(w), int(h)
+    im = fromstring(canvas.tostring_rgb(), dtype='uint8')
     im.shape = h, w, 3
     return im
 
@@ -83,9 +326,9 @@ def cv2_read_file_rgb(filename):
     im = cv2.imread(filename)
     if len(im.shape) == 2:
         # Upconvert single channel grayscale to color
-        im = im[:, :, np.newaxis]
+        im = im[:, :, newaxis]
     if im.shape[2] == 1:
-        im = np.tile(im, (1, 1, 3))
+        im = tile(im, (1, 1, 3))
     if im.shape[2] > 3:
         # Chop off transparency
         im = im[:, :, :3]
@@ -121,7 +364,7 @@ def caffe_load_image(filename, color=True, as_uint=False):
         loads as intensity (if image is already grayscale).
 
     Give
-    image: an image with type np.float32 in range [0, 1]
+    image: an image with type float32 in range [0, 1]
         of size (H x W x 3) in RGB or
         of size (H x W x 1) in grayscale.
     '''
@@ -129,11 +372,11 @@ def caffe_load_image(filename, color=True, as_uint=False):
         if as_uint:
             img = skimage.io.imread(filename)
         else:
-            img = skimage.img_as_float(skimage.io.imread(filename)).astype(np.float32)
+            img = skimage.img_as_float(skimage.io.imread(filename)).astype(float32)
     if img.ndim == 2:
-        img = img[:, :, np.newaxis]
+        img = img[:, :, newaxis]
         if color:
-            img = np.tile(img, (1, 1, 3))
+            img = tile(img, (1, 1, 3))
     elif img.shape[2] == 4:
         img = img[:, :, :3]
     return img
@@ -143,18 +386,18 @@ def get_tiles_height_width(n_tiles, desired_width=None):
     '''Get a height x width size that will fit n_tiles tiles.'''
     if desired_width == None:
         # square
-        width = int(np.ceil(np.sqrt(n_tiles)))
+        width = int(ceil(sqrt(n_tiles)))
         height = width
     else:
         assert isinstance(desired_width, int)
         width = desired_width
-        height = int(np.ceil(float(n_tiles) / width))
+        height = int(ceil(float(n_tiles) / width))
     return height, width
 
 
 def get_tiles_height_width_ratio(n_tiles, width_ratio=1.0):
     '''Get a height x width size that will fit n_tiles tiles.'''
-    width = int(np.ceil(np.sqrt(n_tiles * width_ratio)))
+    width = int(ceil(sqrt(n_tiles * width_ratio)))
     return get_tiles_height_width(n_tiles, desired_width=width)
 
 
@@ -163,7 +406,7 @@ def tile_images_normalize(data, c01=False, boost_indiv=0.0, boost_gamma=1.0, sin
     data = data.copy()
     if single_tile:
         # promote 2D image -> 3D batch (01 -> b01) or 3D image -> 4D batch (01c -> b01c OR c01 -> bc01)
-        data = data[np.newaxis]
+        data = data[newaxis]
     if c01:
         # Convert bc01 -> b01c
         assert len(data.shape) == 4, 'expected bc01 data'
@@ -171,8 +414,8 @@ def tile_images_normalize(data, c01=False, boost_indiv=0.0, boost_gamma=1.0, sin
 
     if neg_pos_colors:
         neg_clr, pos_clr = neg_pos_colors
-        neg_clr = np.array(neg_clr).reshape((1, 3))
-        pos_clr = np.array(pos_clr).reshape((1, 3))
+        neg_clr = array(neg_clr).reshape((1, 3))
+        pos_clr = array(pos_clr).reshape((1, 3))
         # Keep 0 at 0
         data /= max(data.max(), -data.min()) + 1e-10  # Map data to [-1, 1]
 
@@ -182,7 +425,7 @@ def tile_images_normalize(data, c01=False, boost_indiv=0.0, boost_gamma=1.0, sin
         if len(data.shape) == 3:
             data = data.reshape(data.shape + (1,))
         assert data.shape[3] == 1, 'neg_pos_color only makes sense if color data is not provided (channels should be 1)'
-        data = np.dot((data > 0) * data, pos_clr) + np.dot((data < 0) * -data, neg_clr)
+        data = dot((data > 0) * data, pos_clr) + dot((data < 0) * -data, neg_clr)
 
     data -= data.min()
     data *= scale_range / (data.max() + 1e-10)
@@ -202,34 +445,9 @@ def tile_images_normalize(data, c01=False, boost_indiv=0.0, boost_gamma=1.0, sin
     # Promote single-channel data to 3 channel color
     if len(data.shape) == 3:
         # b01 -> b01c
-        data = np.tile(data[:, :, :, np.newaxis], 3)
+        data = tile(data[:, :, :, newaxis], 3)
 
     return data
-
-def plt_plot_filter(data, ):
-
-    # TODO: Francisco Guerrero
-    fig = Figure()
-    canvas = FigureCanvas(fig)
-    ax = fig.add_subplot(111)
-    ax.plot(data, linewidth=1)
-    fig.subplots_adjust(hspace=0)
-    canvas.draw()
-
-    for i in range(data.shape[0]):
-
-        row = 1
-        column = 1
-
-        ax = fig.add_subplot(data.shape[0], 1, (i + 1), axisbelow=False, sharex=ax, sharey=ax)
-        ax.plot(data[i], linewidth=1)
-
-    l, b, w, h = fig.bbox.bounds
-    w, h = int(w), int(h)
-
-    im = np.fromstring(canvas.tostring_rgb(), dtype='uint8')
-    im.shape = h, w, 3
-    return im
 
 
 def tile_images_make_tiles(data, padsize=1, padval=0, hw=None, highlights=None):
@@ -242,21 +460,21 @@ def tile_images_make_tiles(data, padsize=1, padval=0, hw=None, highlights=None):
 
     # First iteration: one-way padding, no highlights
     # padding = ((0, width*height - data.shape[0]), (0, padsize), (0, padsize)) + ((0, 0),) * (data.ndim - 3)
-    # data = np.pad(data, padding, mode='constant', constant_values=(padval, padval))
+    # data = pad(data, padding, mode='constant', constant_values=(padval, padval))
 
     # Second iteration: padding with highlights
     # padding = ((0, width*height - data.shape[0]), (padsize, padsize), (padsize, padsize)) + ((0, 0),) * (data.ndim - 3)
     # print 'tile_images: data min,max =', data.min(), data.max()
     # padder = SmartPadder()
-    ##data = np.pad(data, padding, mode=jy_pad_fn)
-    # data = np.pad(data, padding, mode=padder.pad_function)
+    ##data = pad(data, padding, mode=jy_pad_fn)
+    # data = pad(data, padding, mode=padder.pad_function)
     # print 'padder.calls =', padder.calls
 
     # Third iteration: two-way padding with highlights
     if highlights is not None:
         assert len(highlights) == data.shape[0]
     padding = ((0, width * height - data.shape[0]), (padsize, padsize), (padsize, padsize)) + ((0, 0),) * (
-        data.ndim - 3)
+            data.ndim - 3)
 
     # First pad with constant vals
     try:
@@ -265,9 +483,9 @@ def tile_images_make_tiles(data, padsize=1, padval=0, hw=None, highlights=None):
         padval = tuple((padval,))
     assert len(padval) in (1, 3), 'padval should be grayscale (len 1) or color (len 3)'
     if len(padval) == 1:
-        data = np.pad(data, padding, mode='constant', constant_values=(padval, padval))
+        data = pad(data, padding, mode='constant', constant_values=(padval, padval))
     else:
-        data = np.pad(data, padding, mode='constant', constant_values=(0, 0))
+        data = pad(data, padding, mode='constant', constant_values=(0, 0))
         for cc in (0, 1, 2):
             # Replace 0s with proper color in each channel
             data[:padding[0][0], :, :, cc] = padval[cc]
@@ -328,7 +546,7 @@ def ensure_uint255(arr):
     elif arr.dtype in ('float32', 'float64'):
         # print 'extra check...'
         # assert arr.max() <= 1.1
-        return np.array(arr * 255, dtype='uint8')
+        return array(arr * 255, dtype='uint8')
     else:
         raise Exception('ensure_uint255 expects uint8 or float input but got %s with range [%g,%g,].' % (
             arr.dtype, arr.min(), arr.max()))
@@ -339,7 +557,7 @@ def ensure_float01(arr, dtype_preference='float32'):
     if arr.dtype == 'uint8':
         # print 'extra check...'
         # assert arr.max() <= 256
-        return np.array(arr, dtype=dtype_preference) / 255
+        return array(arr, dtype=dtype_preference) / 255
     elif arr.dtype in ('float32', 'float64'):
         return arr
     else:
@@ -361,58 +579,62 @@ def resize_to_fit(img, out_max_shape,
      - conclusion: uint8 is always tied or faster. float64 is slower.
 
     Scaling down:
-    In [79]: timeit.Timer('resize_to_fit(aa, (200,200))', setup='from kerasvis.app import resize_to_fit; import numpy as np; aa = np.array(np.random.uniform(0,255,(1000,1000,3)), dtype="uint8")').timeit(100)
+    In [79]: timeit.Timer('resize_to_fit(aa, (200,200))', setup='from kerasvis.app import resize_to_fit; import numpy as np; aa = array(np.random.uniform(0,255,(1000,1000,3)), dtype="uint8")').timeit(100)
     Out[79]: 0.04950380325317383
 
-    In [77]: timeit.Timer('resize_to_fit(aa, (200,200))', setup='from kerasvis.app import resize_to_fit; import numpy as np; aa = np.array(np.random.uniform(0,255,(1000,1000,3)), dtype="float32")').timeit(100)
+    In [77]: timeit.Timer('resize_to_fit(aa, (200,200))', setup='from kerasvis.app import resize_to_fit; import numpy as np; aa = array(np.random.uniform(0,255,(1000,1000,3)), dtype="float32")').timeit(100)
     Out[77]: 0.049156904220581055
 
-    In [76]: timeit.Timer('resize_to_fit(aa, (200,200))', setup='from kerasvis.app import resize_to_fit; import numpy as np; aa = np.array(np.random.uniform(0,255,(1000,1000,3)), dtype="float64")').timeit(100)
+    In [76]: timeit.Timer('resize_to_fit(aa, (200,200))', setup='from kerasvis.app import resize_to_fit; import numpy as np; aa = array(np.random.uniform(0,255,(1000,1000,3)), dtype="float64")').timeit(100)
     Out[76]: 0.11808204650878906
 
     Scaling up:
-    In [68]: timeit.Timer('resize_to_fit(aa, (2000,2000))', setup='from kerasvis.app import resize_to_fit; import numpy as np; aa = np.array(np.random.uniform(0,255,(1000,1000,3)), dtype="uint8")').timeit(100)
+    In [68]: timeit.Timer('resize_to_fit(aa, (2000,2000))', setup='from kerasvis.app import resize_to_fit; import numpy as np; aa = array(np.random.uniform(0,255,(1000,1000,3)), dtype="uint8")').timeit(100)
     Out[68]: 0.4357950687408447
 
-    In [70]: timeit.Timer('resize_to_fit(aa, (2000,2000))', setup='from kerasvis.app import resize_to_fit; import numpy as np; aa = np.array(np.random.uniform(0,255,(1000,1000,3)), dtype="float32")').timeit(100)
+    In [70]: timeit.Timer('resize_to_fit(aa, (2000,2000))', setup='from kerasvis.app import resize_to_fit; import numpy as np; aa = array(np.random.uniform(0,255,(1000,1000,3)), dtype="float32")').timeit(100)
     Out[70]: 1.3411099910736084
 
-    In [73]: timeit.Timer('resize_to_fit(aa, (2000,2000))', setup='from kerasvis.app import resize_to_fit; import numpy as np; aa = np.array(np.random.uniform(0,255,(1000,1000,3)), dtype="float64")').timeit(100)
+    In [73]: timeit.Timer('resize_to_fit(aa, (2000,2000))', setup='from kerasvis.app import resize_to_fit; import numpy as np; aa = array(np.random.uniform(0,255,(1000,1000,3)), dtype="float64")').timeit(100)
     Out[73]: 2.6078310012817383
     '''
 
     if dtype_out is not None and img.dtype != dtype_out:
         dtype_in_size = img.dtype.itemsize
-        dtype_out_size = np.dtype(dtype_out).itemsize
+        dtype_out_size = dtype(dtype_out).itemsize
         convert_early = (dtype_out_size < dtype_in_size)
         convert_late = not convert_early
     else:
         convert_early = False
         convert_late = False
-    if out_max_shape[0] is None:
+
+    if img.shape[0] == 0 and img.shape[1] == 0:
+        scale = 1
+    elif out_max_shape[0] is None or img.shape[0] == 0:
         scale = float(out_max_shape[1]) / img.shape[1]
-    elif out_max_shape[1] is None:
+    elif out_max_shape[1] is None or img.shape[1] == 0:
         scale = float(out_max_shape[0]) / img.shape[0]
     else:
         scale = min(float(out_max_shape[0]) / img.shape[0],
                     float(out_max_shape[1]) / img.shape[1])
 
     if convert_early:
-        img = np.array(img, dtype=dtype_out)
+        img = array(img, dtype=dtype_out)
     out = cv2.resize(img,
                      (int(img.shape[1] * scale), int(img.shape[0] * scale)),  # in (c,r) order
                      interpolation=grow_interpolation if scale > 1 else shrink_interpolation)
+
     if convert_late:
-        out = np.array(out, dtype=dtype_out)
+        out = array(out, dtype=dtype_out)
     return out
 
 
 class FormattedString(object):
     def __init__(self, string, defaults, face=None, fsize=None, clr=None, thick=None, align=None, width=None):
         self.string = string
-        self.face = face if face  else defaults['face']
+        self.face = face if face else defaults['face']
         self.fsize = fsize if fsize else defaults['fsize']
-        self.clr = clr if clr   else defaults['clr']
+        self.clr = clr if clr else defaults['clr']
         self.thick = thick if thick else defaults['thick']
         self.width = width  # if None: calculate width automatically
         self.align = align if align else defaults.get('align', 'left')

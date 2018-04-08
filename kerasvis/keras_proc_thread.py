@@ -1,4 +1,8 @@
 import time
+import timeit
+
+from numpy import expand_dims
+from keras import backend as K
 
 from codependent_thread import CodependentThread
 from misc import WithTimer
@@ -20,10 +24,6 @@ class KerasProcThread(CodependentThread):
         self.loop_sleep = loop_sleep
         self.pause_after_keys = pause_after_keys
         self.debug_level = 0
-        self.predictions = None
-
-    def get_predictions(self):
-        return self.predictions
 
     def run(self):
         print 'KerasProcThread.run called'
@@ -75,10 +75,20 @@ class KerasProcThread(CodependentThread):
 
                 with WithTimer('KerasProcThread:forward', quiet=self.debug_level < 1):
                     with self.graph.as_default():
-                        self.predictions = self.net.predict(frame, batch_size=1, verbose=self.debug_level)[0]
+                        start_time = timeit.default_timer()
+
+                        if len(frame.shape) == 2:
+                            frame = expand_dims(frame, axis=0)
+
+                        outputs = [layer.output for layer in self.net.layers]  # all layer outputs
+                        functor = K.function([self.net.input, K.learning_phase()], outputs)  # evaluation function
+                        layer_outs = functor([frame, 0.])
+                        self.net.intermediate_predictions = layer_outs
+                        elapsed = timeit.default_timer() - start_time
+                        print('self.net.predict function ran for', elapsed)
 
                     if self.debug_level == 3:
-                        print ('KerasProcThread:forward self.net.predict:', self.predictions)
+                        print ('KerasProcThread:forward self.net.predict:', self.net.intermediate_predictions[-1][0])
 
             if run_back:
                 diffs = self.net.blobs[backprop_layer].diff * 0

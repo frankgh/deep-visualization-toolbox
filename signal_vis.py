@@ -56,6 +56,8 @@ class SignalVis(object):
         for app_name, app_class in self.app_classes.iteritems():
             app = app_class(settings, self.bindings)
             self.apps[app_name] = app
+            if hasattr(app, 'labels'):
+                self.labels = app.labels
 
         self.help_mode = False
         self.window_name = 'Signal Deep Visualization Toolbox'
@@ -138,6 +140,7 @@ class SignalVis(object):
         latest_frame_data = None
         latest_label = None
         latest_signal = None
+        latest_signal_idx = None
         frame_for_apps = None
         redraw_needed = True  # Force redraw the first time
         imshow_needed = True
@@ -195,14 +198,19 @@ class SignalVis(object):
                 redraw_needed |= app.redraw_needed()
 
             # Grab latest frame from input_updater thread
-            fr_idx, fr_data, fr_signal, fr_label = self.input_updater.get_frame()
-            is_new_frame = (fr_idx != latest_frame_idx and fr_data is not None and fr_signal is not None)
+            fr_idx, fr_data, fr_sig_ix, fr_signal, fr_label, fr_extra = self.input_updater.get_frame()
+            is_new_frame = (fr_idx != latest_frame_idx and fr_data is not None)
+            is_new_signal = (fr_sig_ix != latest_signal_idx and fr_signal is not None)
             if is_new_frame:
                 latest_frame_idx = fr_idx
                 latest_frame_data = fr_data
-                frame_for_apps = fr_data
+                latest_label = fr_label
+
+            if is_new_signal:
+                latest_signal_idx = fr_sig_ix
                 latest_signal = fr_signal
                 latest_label = fr_label
+                frame_for_apps = fr_data
 
             if is_new_frame:
                 with WithTimer('LiveVis.display_frame', quiet=self.debug_level < 1):
@@ -217,7 +225,7 @@ class SignalVis(object):
                 # Pass signal to apps for processing
                 for app_name, app in self.apps.iteritems():
                     with WithTimer('%s:handle_input' % app_name, quiet=self.debug_level < 1):
-                        app.handle_input(latest_signal, self.panes)
+                        app.handle_input(latest_signal, fr_extra, self.panes)
                 frame_for_apps = None
 
             # Tell each app to draw
@@ -281,27 +289,7 @@ class SignalVis(object):
 
     def handle_key_pre_apps(self, key):
         tag = self.bindings.get_tag(key)
-        if tag == 'static_file_increment':
-            if self.input_updater.static_file_mode:
-                self.input_updater.increment_static_file_idx(1)
-            else:
-                self.input_updater.static_file_mode = True
-        elif tag == 'static_file_decrement':
-            if self.input_updater.static_file_mode:
-                self.input_updater.increment_static_file_idx(-1)
-            else:
-                self.input_updater.static_file_mode = True
-        elif tag == 'signal_increment':
-            if self.input_updater.static_file_mode:
-                self.input_updater.increment_signal_idx(1)
-            else:
-                self.input_updater.static_file_mode = True
-        elif tag == 'signal_decrement':
-            if self.input_updater.static_file_mode:
-                self.input_updater.increment_signal_idx(-1)
-            else:
-                self.input_updater.static_file_mode = True
-        elif tag == 'help_mode':
+        if tag == 'help_mode':
             self.help_mode = not self.help_mode
         elif tag == 'stretch_mode':
             self.input_updater.toggle_stretch_mode()
@@ -312,7 +300,38 @@ class SignalVis(object):
             for app_name, app in self.apps.iteritems():
                 app.set_debug(self.debug_level)
         else:
-            return key, False
+            if self.input_updater.static_file_mode:
+                if tag == 'static_file_increment':
+                    self.input_updater.increment_static_file_idx(1)
+                elif tag == 'static_file_decrement':
+                    self.input_updater.increment_static_file_idx(-1)
+                elif tag == 'signal_increment':
+                    self.input_updater.increment_signal_idx(1)
+                elif tag == 'signal_decrement':
+                    self.input_updater.increment_signal_idx(-1)
+                elif tag == 'zoom_in':
+                    self.input_updater.increment_zoom_level(-50)
+                elif tag == 'zoom_in_fast':
+                    self.input_updater.increment_zoom_level(-1000)
+                elif tag == 'zoom_out':
+                    self.input_updater.increment_zoom_level(50)
+                elif tag == 'zoom_out_fast':
+                    self.input_updater.increment_zoom_level(1000)
+                elif tag == 'move_left':
+                    self.input_updater.move_signal(-50)
+                elif tag == 'move_left_fast':
+                    self.input_updater.move_signal(-1000)
+                elif tag == 'move_right':
+                    self.input_updater.move_signal(50)
+                elif tag == 'move_right_fast':
+                    self.input_updater.move_signal(1000)
+                elif tag == 'custom_filter':
+                    self.input_updater.toggle_filter()
+                else:
+                    return key, False
+            else:
+                self.input_updater.static_file_mode = True
+                return key, False
         return None, True
 
     def handle_key_post_apps(self, key):
@@ -353,7 +372,11 @@ class SignalVis(object):
         fs.clr = clr_0
         strings.append([fs])
 
-        fs = FormattedString('  {}'.format(np.argmax(label)), defaults)
+        if hasattr(self, 'labels') and self.labels is not None:
+            lbl = self.labels[np.argmax(label)]
+        else:
+            lbl = np.argmax(label)
+        fs = FormattedString('  {}'.format(lbl), defaults)
         fs.clr = clr_1
         strings.append([fs])
 
@@ -373,8 +396,9 @@ class SignalVis(object):
         lines.append([FormattedString('Base keys', defaults)])
 
         for tag in (
-                'help_mode', 'static_file_increment', 'static_file_decrement', 'signal_increment', 'signal_decrement',
-                'stretch_mode', 'quit'):
+                'help_mode', 'static_file_increment', 'static_file_decrement', 'signal_increment',
+                'signal_decrement', 'custom_filter', 'zoom_in', 'zoom_out', 'move_left', 'move_right', 'stretch_mode',
+                'quit'):
             key_strings, help_string = self.bindings.get_key_help(tag)
             label = '%10s:' % (','.join(key_strings))
             lines.append([FormattedString(label, defaults, width=120, align='right'),

@@ -20,7 +20,7 @@
 
 # Larger masks (requiring a more specific pattern) are matched first
 key_data = []
-for letter in 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789':
+for letter in 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789+-_=[]{}':
     # for letter in 'abefghijklmnopqrstuvwxyzABEFGHIJKLMNOPQRSTUVWXYZ01456789':
     key_data.append((letter, ord(letter), 0xff))  # Match only lowest byte
 

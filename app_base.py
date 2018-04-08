@@ -6,7 +6,7 @@ class BaseApp(object):
     def __init__(self, settings, key_bindings):
         self.debug_level = 0
 
-    def handle_input(self, input_image, panes):
+    def handle_input(self, input_image, extra_info, panes):
         pass
 
     def handle_key(self, key, panes):
