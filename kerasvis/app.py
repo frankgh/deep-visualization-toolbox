@@ -13,7 +13,7 @@ from keras.models import load_model
 from app_base import BaseApp
 from image_misc import FormattedString, cv2_typeset_text, to_255, norm01, norm01c, tile_images_normalize, \
     ensure_float01, tile_images_make_tiles, ensure_uint255_and_resize_to_fit, get_tiles_height_width_ratio, \
-    plt_plot_filters_blit, plt_plot_filter
+    plt_plot_filters_blit, plt_plot_filter, plt_plot_heatmap
 from jpg_vis_loading_thread import JPGVisLoadingThread
 from kerasvis.keras_proc_thread import KerasProcThread
 from kerasvis_app_state import KerasVisAppState
@@ -275,9 +275,10 @@ class KerasVisApp(BaseApp):
                 print >> status, 'View: Plot |',
             elif filter_mode == 4:
                 print >> status, 'View: Extra |',
+            elif filter_mode == 5:
+                print >> status, 'View: Heatmap |',
             else:
                 print >> status, 'View: Activation |',
-
 
             if not self.state.back_enabled:
                 print >> status, 'Back: off',
@@ -311,7 +312,7 @@ class KerasVisApp(BaseApp):
         display_3D_highres, selected_unit_highres = None, None
         out = self.net.intermediate_predictions[self.state.layer_idx]
 
-        if self.state.layers_pane_filter_mode == 4 and self.state.extra_info is None:
+        if self.state.layers_pane_filter_mode in (4, 5) and self.state.extra_info is None:
             self.state.layers_pane_filter_mode = 0
 
         state_layers_pane_filter_mode = self.state.layers_pane_filter_mode
@@ -351,7 +352,7 @@ class KerasVisApp(BaseApp):
                     r, c, hide_axis = 1, 1, False
                     layer_dat_3D = layer_dat_3D[self.state.selected_unit:self.state.selected_unit + 1]
                     title = 'Layer {}, Filter {}'.format(self.state._layers[self.state.layer_idx],
-                                                         (self.state.selected_unit + 1))
+                                                         self.state.selected_unit)
                     x_axis_label, y_axis_label = 'Time', 'Activation'
 
                 display_3D = plt_plot_filters_blit(
@@ -372,7 +373,7 @@ class KerasVisApp(BaseApp):
                         x=None,
                         y=layer_dat_3D[self.state.selected_unit],
                         title='Layer {}, Filter {}'.format(self.state._layers[self.state.layer_idx],
-                                                           (self.state.selected_unit + 1)),
+                                                           self.state.selected_unit),
                         log_scale=self.state.log_scale,
                         x_axis_label='Time',
                         y_axis_label='Activation'
@@ -385,6 +386,75 @@ class KerasVisApp(BaseApp):
 
             if self.state.extra_info is not None:
                 extra = self.state.extra_info.item()
+                is_heatmap = True if 'type' in extra and extra['type'] == 'heatmap' else False
+
+                if is_heatmap:
+                    layer_dat_3D = extra['data'][self.state.layer_idx]
+
+                    display_3D = plt_plot_heatmap(
+                        data=layer_dat_3D,
+                        shape=(pane.data.shape[0], pane.data.shape[1]),
+                        rows=tile_rows,
+                        cols=tile_cols,
+                        x_axis_label=extra['x_axis'],
+                        y_axis_label=extra['y_axis'],
+                        title=extra['title'],
+                        x_axis_values=extra['x_axis_values'],
+                        y_axis_values=extra['y_axis_values']
+                    )
+
+
+                else:
+
+                    layer_dat_3D = extra['x'][self.state.layer_idx]
+                    title, x_axis_label, y_axis_label, r, c, hide_axis = None, None, None, tile_rows, tile_cols, True
+
+                    if self.state.cursor_area == 'bottom':
+                        if state_layers_pane_zoom_mode == 1:
+                            r, c, hide_axis = 1, 1, False
+                            layer_dat_3D = layer_dat_3D[self.state.selected_unit:self.state.selected_unit + 1]
+                            title = 'Layer {}, Filter {} \n {}'.format(self.state._layers[self.state.layer_idx],
+                                                                       self.state.selected_unit, extra['title'])
+                            x_axis_label, y_axis_label = extra['x_axis'], extra['y_axis']
+
+                            if self.state.log_scale == 1:
+                                y_axis_label = y_axis_label + ' (log-scale)'
+
+                    # start_time = timeit.default_timer()
+                    display_3D = plt_plot_filters_blit(
+                        y=layer_dat_3D,
+                        x=extra['y'],
+                        shape=(pane.data.shape[0], pane.data.shape[1]),
+                        rows=r,
+                        cols=c,
+                        title=title,
+                        log_scale=self.state.log_scale,
+                        x_axis_label=x_axis_label,
+                        y_axis_label=y_axis_label,
+                        hide_axis=hide_axis
+                    )
+
+                    if self.state.cursor_area == 'bottom' and state_layers_pane_zoom_mode == 0:
+                        selected_unit_highres = plt_plot_filter(
+                            x=extra['y'],
+                            y=layer_dat_3D[self.state.selected_unit],
+                            title='Layer {}, Filter {} \n {}'.format(self.state._layers[self.state.layer_idx],
+                                                                     self.state.selected_unit, extra['title']),
+                            log_scale=self.state.log_scale,
+                            x_axis_label=extra['x_axis'],
+                            y_axis_label=extra['y_axis']
+                        )
+
+            # TODO
+
+            # if hasattr(self.settings, 'static_files_extra_fn'):
+            #     self.data = self.settings.static_files_extra_fn(self.latest_static_file)
+            #      self.state.layer_idx
+
+        elif state_layers_pane_filter_mode == 5:
+
+            if self.state.extra_info is not None:
+                extra = self.state.extra_info.item()
                 layer_dat_3D = extra['x'][self.state.layer_idx]
                 title, x_axis_label, y_axis_label, r, c, hide_axis = None, None, None, tile_rows, tile_cols, True
 
@@ -393,16 +463,15 @@ class KerasVisApp(BaseApp):
                         r, c, hide_axis = 1, 1, False
                         layer_dat_3D = layer_dat_3D[self.state.selected_unit:self.state.selected_unit + 1]
                         title = 'Layer {}, Filter {} \n {}'.format(self.state._layers[self.state.layer_idx],
-                                                                   (self.state.selected_unit + 1), extra['title'])
+                                                                   self.state.selected_unit, extra['title'])
                         x_axis_label, y_axis_label = extra['x_axis'], extra['y_axis']
 
                         if self.state.log_scale == 1:
                             y_axis_label = y_axis_label + ' (log-scale)'
 
-                # start_time = timeit.default_timer()
-                display_3D = plt_plot_filters_blit(
-                    y=layer_dat_3D,
+                display_3D = plt_plot_heatmap(
                     x=extra['y'],
+                    y=layer_dat_3D,
                     shape=(pane.data.shape[0], pane.data.shape[1]),
                     rows=r,
                     cols=c,
@@ -412,23 +481,6 @@ class KerasVisApp(BaseApp):
                     y_axis_label=y_axis_label,
                     hide_axis=hide_axis
                 )
-
-                if self.state.cursor_area == 'bottom' and state_layers_pane_zoom_mode == 0:
-                    selected_unit_highres = plt_plot_filter(
-                        x=extra['y'],
-                        y=layer_dat_3D[self.state.selected_unit],
-                        title='Layer {}, Filter {} \n {}'.format(self.state._layers[self.state.layer_idx],
-                                                                 (self.state.selected_unit + 1), extra['title']),
-                        log_scale=self.state.log_scale,
-                        x_axis_label=extra['x_axis'],
-                        y_axis_label=extra['y_axis']
-                    )
-
-            # TODO
-
-            # if hasattr(self.settings, 'static_files_extra_fn'):
-            #     self.data = self.settings.static_files_extra_fn(self.latest_static_file)
-            #      self.state.layer_idx
 
         if len(layer_dat_3D.shape) == 1:
             layer_dat_3D = layer_dat_3D[:, np.newaxis, np.newaxis]
@@ -591,8 +643,6 @@ class KerasVisApp(BaseApp):
 
         with self.state.lock:
             mode = 'selected' if self.state.cursor_area == 'bottom' else 'none'
-
-
 
         if mode == 'selected':
             unit_data = None

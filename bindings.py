@@ -94,7 +94,7 @@ _.add_multikey('sel_layer_right', ['o', 'O'], 'Select next layer without moving 
 _.add('log_scale', 'x', 'Plot in the logarithmic scale')
 _.add('zoom_mode', 'z', 'Cycle zooming through {currently selected unit, backprop results, none}')
 _.add('pattern_mode', 's', 'Toggle overlay of preferred input pattern (regularized optimized images)')
-_.add('filter_mode', 'f', 'Toggle filter output visualization (square, average, max, signal, custom)')
+_.add('filter_mode', 'f', 'Toggle filter output visualization (square, average, max, signal, custom, heatmap)')
 
 _.add('ez_back_mode_loop', 'b', 'Cycle through a few common backprop/deconv modes')
 _.add('freeze_back_unit', 'd', 'Freeze the bprop/deconv origin to be the currently selected unit')
