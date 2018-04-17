@@ -1,7 +1,5 @@
 #! /usr/bin/env python
 
-import time
-
 import cv2
 import matplotlib.pyplot as plt
 import skimage
@@ -117,7 +115,10 @@ def plt_plot_heatmap(data,
                      x_axis_label=None,
                      y_axis_label=None,
                      x_axis_values=None,
-                     y_axis_values=None):
+                     y_axis_values=None,
+                     hide_axis=True,
+                     vmin=None,
+                     vmax=None):
     res = []
     shape = (max(2, ceil(shape[1] / 80 / cols)), max(2, ceil(shape[0] / 80 / rows)))
     fig, ax = plt.subplots(1, 1, figsize=shape)
@@ -136,8 +137,8 @@ def plt_plot_heatmap(data,
     img = ax.imshow(
         zeros((data.shape[1], data.shape[2])),
         cmap='viridis',
-        vmin=0,
-        vmax=90,
+        vmin=vmin if vmin is not None else data.min(),
+        vmax=vmax if vmax is not None else data.max(),
         interpolation='none',
         aspect='auto'
     )
@@ -150,50 +151,81 @@ def plt_plot_heatmap(data,
     ax.xaxis.set_ticks_position('bottom')
     ax.yaxis.set_ticks_position('left')
 
-    # if x_axis_label is not None:
-    #     ax.set_xlabel(x_axis_label)
-    #
-    # if y_axis_label is not None:
-    #     ax.set_ylabel(y_axis_label)
+    if hide_axis:
+        ax.set_xticks([])
+        ax.set_yticks([])
+        ax.xaxis.set_ticklabels([])
+        ax.yaxis.set_ticklabels([])
+        fig.subplots_adjust(left=0.05, bottom=0.05, right=0.95, top=0.95, hspace=0, wspace=0)
+    else:
 
-    if x_axis_values is not None:
-        ax.set_xticks(arange(0, x_axis_values.shape[0], 3) + 0.5)
-        ax.set_xticklabels(arange(0.5, 20.5, 1.5), rotation=90)
-        # ax.xaxis.set_ticks(arange(x_axis_values.min(), x_axis_values.max(), 3))
+        if title is not None:
+            plt.title(title)
 
-    if y_axis_values is not None:
-        # ax.yaxis.set_ticks(arange(y_axis_values.min(), y_axis_values.max(), 3))
-        ax.set_yticks(arange(0, y_axis_values.shape[0], 3) + 0.5)
-        ax.set_yticklabels((arange(10, 170, 15)) * 2)
+        if x_axis_label is not None:
+            ax.set_xlabel(x_axis_label)
+
+        if y_axis_label is not None:
+            ax.set_ylabel(y_axis_label)
+
+        if x_axis_values is not None:
+            a = arange(0, x_axis_values.shape[0], 3) + 0.5
+            b = arange(x_axis_values.min(), x_axis_values.max() + 1.5, 1.5)
+            ax.set_xticks(a)
+            ax.set_xticklabels(b, rotation=90)
+
+        if y_axis_values is not None:
+            a = arange(0, y_axis_values.shape[0], 3) + 0.5
+            # c = roundup((y_axis_values.max() - y_axis_values.min()) / 11)
+            # b = arange(y_axis_values.min(), y_axis_values.max(), c)
+            b = linspace(y_axis_values.min(), y_axis_values.max(), num=10, dtype=int)
+            ax.set_yticks(a)
+            ax.set_yticklabels(b)
 
     # for tick in ax.get_xticklabels():
     #     tick.set_rotation(90)
 
-    divider = make_axes_locatable(ax)
-    # colorbar on the right of ax. Colorbar width in % of ax and space between them is defined by pad in inches
-    cax = divider.append_axes('right', size='5%', pad=0.07)
-    cb = fig.colorbar(img, cax=cax)
-    # remove colorbar frame/spines
-    cb.outline.set_visible(False)
+    if not hide_axis:
+        divider = make_axes_locatable(ax)
+        # colorbar on the right of ax. Colorbar width in % of ax and space between them is defined by pad in inches
+        cax = divider.append_axes('right', size='5%', pad=0.07)
+        cb = fig.colorbar(img, cax=cax)
+        # remove colorbar frame/spines
+        cb.outline.set_visible(False)
 
     # don't stop after each subfigure change
     plt.show(block=False)
 
-    # loop through array
-    start = time.time()
+    if not hide_axis:
+        fig.tight_layout()
+    canvas.draw()  # draw the canvas, cache the renderer
+
+    # keep bg in memory
+    background = fig.canvas.copy_from_bbox(ax.bbox)
+    # start = time.time()
     for i in xrange(data.shape[0]):
-        time.sleep(0.005)
         img.set_array(data[i])
-        canvas.draw()
+
+        # restore background
+        fig.canvas.restore_region(background)
+
+        ax.draw_artist(img)
+
+        # fill in the axes rectangle
+        fig.canvas.blit(ax.bbox)
+
+        # loop through array
+
+        # for i in xrange(data.shape[0]):
+        #     time.sleep(0.005)
+        #     img.set_array(data[i])
+        #     canvas.draw()
 
         l, b, w, h = fig.bbox.bounds
         w, h = int(w), int(h)
         im = fromstring(canvas.tostring_rgb(), dtype='uint8')
         im.shape = h, w, 3
         res.append(im)
-
-    stop = time.time()
-    print(stop - start)
 
     fig.clf()
     plt.clf()
