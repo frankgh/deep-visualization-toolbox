@@ -85,7 +85,7 @@ if global_scale != 1.0:
         scaled_window_panes.append([wp[0], [int(val * global_scale) for val in wp[1]]])
     window_panes = scaled_window_panes
 
-# All window configuation information is now contained in the
+# All window configuration information is now contained in the
 # window_panes variable. Print if desired:
 if debug_window_panes:
     print 'Final window panes and locations/sizes (i, j, i_size, j_size):'

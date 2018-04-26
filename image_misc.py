@@ -7,7 +7,9 @@ import skimage.io
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 from matplotlib.figure import Figure
 from matplotlib.pyplot import cm
-from numpy import arange, array, newaxis, tile, linspace, pad, expand_dims, fromstring, ceil, dtype, float32, sqrt, dot
+from mpl_toolkits.axes_grid1 import make_axes_locatable
+from numpy import arange, array, newaxis, tile, linspace, pad, expand_dims, \
+    fromstring, ceil, dtype, float32, sqrt, dot, zeros
 
 from misc import WithTimer
 
@@ -56,7 +58,7 @@ def cv2_read_cap_rgb(cap, saveto=None):
 
 
 def plt_plot_signal(data, labels, zoom_level=-1, offset=0, markers=None, title=None):
-    fig = Figure()
+    fig = Figure(figsize=(5, 5))
     canvas = FigureCanvas(fig)
     ax = None
 
@@ -70,13 +72,13 @@ def plt_plot_signal(data, labels, zoom_level=-1, offset=0, markers=None, title=N
 
     s = offset
     e = s + zoom_level
-    y = arange(s, e)
+    x = arange(s, e)
 
     for i in range(data.shape[1]):
         c = next(color)
         label = labels[i] if labels is not None else 'Signal {}'.format(i + 1)
         ax = fig.add_subplot(data.shape[1], 1, (i + 1), sharex=ax)
-        ax.plot(y, data[s:e, i], lw=2, label=label, c=c)
+        ax.plot(x, data[s:e, i], lw=1, label=label, c=c)
         # # ax.set_adjustable('box-forced')
         # ax.set_xlim(left=0, right=zoom_level)
         # ax.get_xaxis().set_visible(i == data.shape[1] - 1)
@@ -88,7 +90,8 @@ def plt_plot_signal(data, labels, zoom_level=-1, offset=0, markers=None, title=N
 
         if markers is not None and i in markers:
             for val in markers[i]:
-                ax.axvline(x=val)
+                if val >= s and val < e:
+                    ax.axvline(x=val)
 
     if title is not None:
         fig.suptitle(title)
@@ -101,6 +104,155 @@ def plt_plot_signal(data, labels, zoom_level=-1, offset=0, markers=None, title=N
 
     im = fromstring(canvas.tostring_rgb(), dtype='uint8')
     im.shape = h, w, 3
+    return im
+
+
+def plt_plot_heatmap(data,
+                     shape,
+                     rows,
+                     cols,
+                     title=None,
+                     x_axis_label=None,
+                     y_axis_label=None,
+                     x_axis_values=None,
+                     y_axis_values=None,
+                     hide_axis=True,
+                     vmin=None,
+                     vmax=None):
+    res = []
+    shape = (max(2, ceil(shape[1] / 80 / cols)), max(2, ceil(shape[0] / 80 / rows)))
+    fig, ax = plt.subplots(1, 1, figsize=shape)
+    canvas = FigureCanvas(fig)
+
+    # for i in xrange(y.shape[0]):
+    #     sns.heatmap(y[i], ax=ax, vmin=minn, vmax=maxx)
+    #     canvas.draw()  # draw the canvas, cache the renderer
+    #
+    #     l, b, w, h = fig.bbox.bounds
+    #     w, h = int(w), int(h)
+    #     im = fromstring(canvas.tostring_rgb(), dtype='uint8')
+    #     im.shape = h, w, 3
+    #     res.append(im)
+
+    img = ax.imshow(
+        zeros((data.shape[1], data.shape[2])),
+        cmap='viridis',
+        vmin=vmin if vmin is not None else data.min(),
+        vmax=vmax if vmax is not None else data.max(),
+        interpolation='none',
+        aspect='auto'
+    )
+
+    # get rid of spines and fix range of axes, rotate x-axis labels
+    ax.spines['left'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.spines['top'].set_visible(False)
+    ax.spines['bottom'].set_visible(False)
+    ax.xaxis.set_ticks_position('bottom')
+    ax.yaxis.set_ticks_position('left')
+
+    if hide_axis:
+        ax.set_xticks([])
+        ax.set_yticks([])
+        ax.xaxis.set_ticklabels([])
+        ax.yaxis.set_ticklabels([])
+        fig.subplots_adjust(left=0.05, bottom=0.05, right=0.95, top=0.95, hspace=0, wspace=0)
+    else:
+
+        if title is not None:
+            plt.title(title)
+
+        if x_axis_label is not None:
+            ax.set_xlabel(x_axis_label)
+
+        if y_axis_label is not None:
+            ax.set_ylabel(y_axis_label)
+
+        if x_axis_values is not None:
+            a = arange(0, x_axis_values.shape[0], 3) + 0.5
+            b = arange(x_axis_values.min(), x_axis_values.max() + 1.5, 1.5)
+            ax.set_xticks(a)
+            ax.set_xticklabels(b, rotation=90)
+
+        if y_axis_values is not None:
+            a = arange(0, y_axis_values.shape[0], 3) + 0.5
+            # c = roundup((y_axis_values.max() - y_axis_values.min()) / 11)
+            # b = arange(y_axis_values.min(), y_axis_values.max(), c)
+            b = linspace(y_axis_values.min(), y_axis_values.max(), num=10, dtype=int)
+            ax.set_yticks(a)
+            ax.set_yticklabels(b)
+
+    # for tick in ax.get_xticklabels():
+    #     tick.set_rotation(90)
+
+    if not hide_axis:
+        divider = make_axes_locatable(ax)
+        # colorbar on the right of ax. Colorbar width in % of ax and space between them is defined by pad in inches
+        cax = divider.append_axes('right', size='5%', pad=0.07)
+        cb = fig.colorbar(img, cax=cax)
+        # remove colorbar frame/spines
+        cb.outline.set_visible(False)
+
+    # don't stop after each subfigure change
+    plt.show(block=False)
+
+    if not hide_axis:
+        fig.tight_layout()
+    canvas.draw()  # draw the canvas, cache the renderer
+
+    # keep bg in memory
+    background = fig.canvas.copy_from_bbox(ax.bbox)
+    # start = time.time()
+    for i in xrange(data.shape[0]):
+        img.set_array(data[i])
+
+        # restore background
+        fig.canvas.restore_region(background)
+
+        ax.draw_artist(img)
+
+        # fill in the axes rectangle
+        fig.canvas.blit(ax.bbox)
+
+        # loop through array
+
+        # for i in xrange(data.shape[0]):
+        #     time.sleep(0.005)
+        #     img.set_array(data[i])
+        #     canvas.draw()
+
+        l, b, w, h = fig.bbox.bounds
+        w, h = int(w), int(h)
+        im = fromstring(canvas.tostring_rgb(), dtype='uint8')
+        im.shape = h, w, 3
+        res.append(im)
+
+    fig.clf()
+    plt.clf()
+    plt.close()
+    return array(res)
+
+
+def plt_plot_filter(x, y, title, x_axis_label, y_axis_label, log_scale):
+    fig, ax = plt.subplots(1, 1, figsize=(4, 4))
+    canvas = FigureCanvas(fig)
+    x = arange(0, y.shape[0]) if x is None else x
+    if log_scale == 1:
+        ax.semilogy(x, y, lw=2)
+    else:
+        ax.plot(x, y, lw=2)
+    ax.set(xlabel=x_axis_label, ylabel=y_axis_label, title=title)
+
+    fig.tight_layout()
+    canvas.draw()  # draw the canvas, cache the renderer
+
+    l, b, w, h = fig.bbox.bounds
+    w, h = int(w), int(h)
+    im = fromstring(canvas.tostring_rgb(), dtype='uint8')
+    im.shape = h, w, 3
+    fig.clf()
+    plt.clf()
+    plt.close()
     return im
 
 
@@ -120,7 +272,6 @@ def plt_plot_filters_blit(y, x, shape, rows, cols,
     # elif log_scale == 3:
     #     x = log(x)
     #     y = log(y)
-
     shape = (max(2, ceil(shape[1] / 80 / cols)), max(2, ceil(shape[0] / 80 / rows)))
     fig, ax = plt.subplots(1, 1, figsize=shape)
     canvas = FigureCanvas(fig)

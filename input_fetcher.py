@@ -33,6 +33,7 @@ class InputSignalFetcher(CodependentThread):
         self.signal_apply_filter = False
         self.signal_zoom_level = -1
         self.signal_offset = 0
+        self.markers = None
 
         # Dynamic file input
         self.dynamic_filename = settings.dynamic_filename if hasattr(settings, 'dynamic_filename') else None
@@ -129,9 +130,16 @@ class InputSignalFetcher(CodependentThread):
     def toggle_filter(self):
         with self.lock:
             self.signal_apply_filter = not self.signal_apply_filter
-            print ('toggle_filter', self.signal_apply_filter)
-            sig = self._plot()
-            self._increment_and_set_frame(self.latest_static_frame, sig)
+            signal = self.latest_static_file_data[self.signal_idx:self.signal_idx + 1]
+
+            if self.signal_apply_filter and hasattr(self.settings, 'signal_filter_fn'):
+                signal, self.markers = self.settings.signal_filter_fn(signal)
+            else:
+                self.markers = {}
+
+            self._plot(signal[0])
+            self._increment_and_set_frame(self.latest_static_frame, signal)
+
 
     def increment_zoom_level(self, amount=100):
         with self.lock:
@@ -147,7 +155,7 @@ class InputSignalFetcher(CodependentThread):
                 if self.signal_offset + self.signal_zoom_level > self.latest_signal.shape[1]:
                     self.signal_offset = self.latest_signal.shape[1] - self.signal_zoom_level
 
-                self._plot()
+                self._plot(self.latest_signal[0])
                 self._increment_and_set_frame(self.latest_static_frame, None)
 
     def move_signal(self, amount=100):
@@ -164,7 +172,7 @@ class InputSignalFetcher(CodependentThread):
 
             if new_value != self.signal_offset:
                 self.signal_offset = new_value
-                self._plot()
+                self._plot(self.latest_signal[0])
                 self._increment_and_set_frame(self.latest_static_frame, None)
 
     def increment_signal_idx(self, amount=1):
@@ -241,34 +249,30 @@ class InputSignalFetcher(CodependentThread):
             self.signal_idx = (self.signal_idx + self.signal_idx_increment) % available_signal_count
             self.signal_idx_increment = 0
 
+            signal = self.latest_static_file_data[self.signal_idx:self.signal_idx + 1]
+            if self.signal_apply_filter and hasattr(self.settings, 'signal_filter_fn'):
+                signal, self.markers = self.settings.signal_filter_fn(signal)
+
             if new_data_file_loaded or self.latest_static_frame is None or self.last_signal_idx is None or self.last_signal_idx != self.signal_idx:
                 self.last_signal_idx = self.signal_idx
-                self._plot()
+                self._plot(signal[0])
 
-            self._increment_and_set_frame(
-                self.latest_static_frame,
-                self.latest_static_file_data[self.signal_idx:self.signal_idx + 1]
-            )
+            self._increment_and_set_frame(self.latest_static_frame, signal)
 
-    def _plot(self):
-        markers = None
-        start_time = timeit.default_timer()
-        sig = self.latest_static_file_data[self.signal_idx]
-        if self.signal_apply_filter and hasattr(self.settings, 'signal_filter_fn'):
-            sig, markers = self.settings.signal_filter_fn(sig)
+    def _plot(self, data):
+
+        # start_time = timeit.default_timer()
         im = plt_plot_signal(
-            sig,
+            data,
             self.signal_labels,
             offset=self.signal_offset,
             zoom_level=self.signal_zoom_level,
-            markers=markers
+            markers=self.markers
         )
-        elapsed = timeit.default_timer() - start_time
-        print('plt_plot_signal function ran for', elapsed)
+        # print('plt_plot_signal function ran for', timeit.default_timer() - start_time)
 
         if not self.static_file_stretch_mode:
             im = crop_to_square(im)
         self.latest_static_frame = im
         if self.latest_static_file_labels is not None:
             self.latest_label = self.latest_static_file_labels[self.signal_idx]
-        return sig
