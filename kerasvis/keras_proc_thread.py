@@ -1,7 +1,7 @@
 import time
 import timeit
 
-from numpy import expand_dims
+from numpy import expand_dims, ones
 from keras import backend as K
 
 from codependent_thread import CodependentThread
@@ -79,6 +79,13 @@ class KerasProcThread(CodependentThread):
 
                         if len(frame.shape) == 2:
                             frame = expand_dims(frame, axis=0)
+
+                        weights = self.net.trainable_weights  # weight tensors
+                        gradients = self.net.optimizer.get_gradients(self.net.total_loss, weights)  # gradient tensors
+                        input_tensors = self.net.inputs + self.net.sample_weights + self.net.targets + [K.learning_phase()]
+                        get_gradients = K.function(inputs=input_tensors, outputs=gradients)
+                        inputs = [frame, ones(len(frame)), [1, 0, 0, 0, 0], 0]
+                        grads = get_gradients(inputs)
 
                         outputs = [layer.output for layer in self.net.layers]  # all layer outputs
                         functor = K.function([self.net.input, K.learning_phase()], outputs)  # evaluation function

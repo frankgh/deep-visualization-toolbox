@@ -119,6 +119,10 @@ def plt_plot_heatmap(data,
                      hide_axis=True,
                      vmin=None,
                      vmax=None):
+    """
+    Most ideas were taken
+    from https://stackoverflow.com/questions/45697522/seaborn-heatmap-plotting-execution-time-optimization
+    """
     res = []
     shape = (max(2, ceil(shape[1] / 80 / cols)), max(2, ceil(shape[0] / 80 / rows)))
     fig, ax = plt.subplots(1, 1, figsize=shape)
